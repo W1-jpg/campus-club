@@ -1,0 +1,118 @@
+/* ============================================
+   设计令牌系统 — 校园社团成果展示与孵化系统
+   统一所有颜色、间距、阴影、圆角、字体
+   ============================================ */
+
+:root {
+  /* ========== 品牌色彩 ========== */
+  --color-primary: #2B5AED;
+  --color-primary-light: #4E7BF5;
+  --color-primary-lighter: #889DF7;
+  --color-primary-dark: #1A3DB5;
+  --color-primary-bg: #EEF1FE;
+  --color-primary-bg-light: #F5F7FF;
+
+  /* 渐变色（用于标题、横幅、按钮特效） */
+  --gradient-primary: linear-gradient(135deg, #2B5AED 0%, #4E7BF5 100%);
+  --gradient-accent: linear-gradient(135deg, #2B5AED 0%, #667eea 50%, #889DF7 100%);
+  --gradient-hero: linear-gradient(135deg, #1a3a8a 0%, #2B5AED 40%, #4E7BF5 100%);
+
+  /* ========== 功能色彩 ========== */
+  --color-success: #52C41A;
+  --color-success-bg: #F0FBE6;
+  --color-success-light: #95DE64;
+
+  --color-warning: #FAAD14;
+  --color-warning-bg: #FFF8E6;
+  --color-warning-light: #FFD666;
+
+  --color-danger: #FF4D4F;
+  --color-danger-bg: #FFF0F0;
+  --color-danger-light: #FF8888;
+
+  --color-info: #1890FF;
+  --color-info-bg: #E8F4FD;
+
+  /* ========== 中性色 ========== */
+  --bg-page: #F0F2F5;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FAFBFC;
+  --border-color: #E5E6EB;
+  --border-color-light: #F0F2F5;
+
+  --text-primary: #1F2329;
+  --text-secondary: #646A73;
+  --text-tertiary: #8F959E;
+  --text-disabled: #BBBFC4;
+  --text-inverse: #FFFFFF;
+
+  /* ========== 间距 ========== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 48px;
+
+  /* ========== 字体 ========== */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-code: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 20px;
+  --font-size-title: 24px;
+  --font-size-h1: 28px;
+
+  --line-height: 1.5715;
+
+  /* ========== 阴影 ========== */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-xl: 0 12px 36px rgba(0, 0, 0, 0.12);
+  --shadow-xxl: 0 20px 48px rgba(0, 0, 0, 0.15);
+
+  /* 卡片特定阴影 */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.10);
+
+  /* ========== 圆角 ========== */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-base: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-round: 9999px;
+
+  /* ========== 过渡 ========== */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ========== 布局 ========== */
+  --navbar-height: 56px;
+  --content-max-width: 1200px;
+  --content-max-width-wide: 1400px;
+  --sidebar-width: 220px;
+
+  /* ========== Z-Index 层级 ========== */
+  --z-dropdown: 900;
+  --z-sticky: 950;
+  --z-navbar: 1000;
+  --z-dialog: 1050;
+  --z-notification: 1100;
+  --z-tooltip: 1150;
+}
+
+/* ========== 暗色模式预留 ========== */
+/* [data-theme="dark"] { ... } */
