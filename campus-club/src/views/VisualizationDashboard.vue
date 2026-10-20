@@ -34,13 +34,28 @@
         />
       </div>
 
+      <!-- 关键比率 -->
+      <div class="insight-row">
+        <div v-for="item in insights" :key="item.label" class="insight-card">
+          <div class="insight-card__top">
+            <span>{{ item.label }}</span>
+            <b>{{ item.percent }}%</b>
+          </div>
+          <div class="insight-card__bar">
+            <i :style="{ width: Math.max(item.percent, 2) + '%', background: item.color }" />
+          </div>
+          <div class="insight-card__sub">{{ item.detail }}</div>
+        </div>
+      </div>
+
       <!-- 图表 -->
       <div v-loading="loading && !loaded" class="chart-grid">
         <div
-          v-for="card in chartCards"
+          v-for="(card, index) in chartCards"
           :key="card.title"
           class="content-card chart-card"
           :class="{ 'chart-card--wide': card.wide }"
+          :style="{ '--accent': PALETTE[index % PALETTE.length] }"
         >
           <div class="chart-card__head">
             <h3 class="chart-card__title">
@@ -48,13 +63,13 @@
             </h3>
             <span class="chart-card__meta">{{ card.meta }}</span>
           </div>
-          <BaseChart v-if="card.hasData" :option="card.option" :height="card.height || '260px'" />
+          <BaseChart v-if="card.hasData" :option="card.option" :height="card.height || '280px'" />
           <el-empty v-else description="暂无数据" :image-size="70" />
         </div>
       </div>
 
       <p class="viz-footnote">
-        图表数据均来自数据库真实统计（成果 / 获奖 / 资源 / 申请），未使用任何模拟数据。
+        图表数据实时来自数据库聚合统计（成果 / 获奖 / 资源 / 申请），随业务数据变化自动更新。
       </p>
     </div>
   </PageLayout>
@@ -68,7 +83,7 @@ import PageLayout from '../components/PageLayout.vue'
 import StatCard from '../components/charts/StatCard.vue'
 import BaseChart from '../components/charts/BaseChart.vue'
 import { getVisualizationDashboard } from '../api/visualization'
-import { pieOption, barOption, lineOption, funnelOption } from '../utils/chartOptions'
+import { pieOption, barOption, lineOption, funnelOption, PALETTE } from '../utils/chartOptions'
 
 const router = useRouter()
 
@@ -141,6 +156,25 @@ const kpiCards = computed(() => {
     { label: '企业总数', value: v.enterpriseCount, icon: '🏢', variant: 'green' },
     { label: '专家总数', value: v.expertCount, icon: '🔬', variant: 'purple' },
     { label: '累计浏览', value: v.viewTotal, icon: '👁️', variant: 'blue' }
+  ]
+})
+
+const insights = computed(() => {
+  const d = data.value
+  if (!d) return []
+  const sum = (rows) => (rows || []).reduce((s, x) => s + Number(x.value || 0), 0)
+  const pick = (rows, name) => Number(((rows || []).find((x) => x.name === name) || {}).value || 0)
+  const reviewTotal = sum(d.achievement.reviewStatusDist)
+  const reviewPass = pick(d.achievement.reviewStatusDist, '已通过')
+  const incTotal = sum(d.achievement.incubationStatusDist)
+  const incDone = pick(d.achievement.incubationStatusDist, '已完成')
+  const appTotal = sum(d.application.statusDist)
+  const appPass = pick(d.application.statusDist, '已通过')
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0)
+  return [
+    { label: '成果评审通过率', percent: pct(reviewPass, reviewTotal), detail: `${reviewPass} / ${reviewTotal} 项`, color: 'linear-gradient(90deg,#3B82F6,#60A5FA)' },
+    { label: '孵化完成率', percent: pct(incDone, incTotal), detail: `${incDone} / ${incTotal} 项`, color: 'linear-gradient(90deg,#10B981,#34D399)' },
+    { label: '资源申请通过率', percent: pct(appPass, appTotal), detail: `${appPass} / ${appTotal} 条`, color: 'linear-gradient(90deg,#F59E0B,#FBBF24)' }
   ]
 })
 
@@ -294,20 +328,97 @@ onMounted(load)
 /* KPI */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+@media (max-width: 1200px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 关键比率 */
+.insight-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
+}
+@media (max-width: 900px) {
+  .insight-row { grid-template-columns: 1fr; }
+}
+.insight-card {
+  padding: 14px 18px;
+  border-radius: var(--radius-lg, 16px);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.8));
+  box-shadow: var(--shadow-card, 0 6px 20px rgba(43, 90, 237, 0.08));
+}
+.insight-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.insight-card__top b {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.insight-card__bar {
+  height: 7px;
+  margin: 8px 0 6px;
+  border-radius: 999px;
+  background: #eef1f8;
+  overflow: hidden;
+}
+.insight-card__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.8s ease;
+}
+.insight-card__sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 /* 图表栅格 */
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-lg);
   min-height: 200px;
 }
+@media (max-width: 1200px) {
+  .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .chart-grid { grid-template-columns: 1fr; }
+}
 .chart-card {
+  position: relative;
   padding: var(--spacing-lg);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.chart-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent, transparent);
+  opacity: 0.9;
+}
+.chart-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md, 0 16px 36px rgba(43, 90, 237, 0.14));
 }
 .chart-card--wide {
   grid-column: span 2;
@@ -322,6 +433,8 @@ onMounted(load)
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-sm);
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border-color, #eef0f4);
 }
 .chart-card__title {
   display: flex;
@@ -335,8 +448,11 @@ onMounted(load)
   font-size: 17px;
 }
 .chart-card__meta {
+  padding: 2px 8px;
   font-size: 12px;
   color: var(--text-tertiary);
+  background: #f5f7fb;
+  border-radius: 999px;
 }
 
 .viz-footnote {

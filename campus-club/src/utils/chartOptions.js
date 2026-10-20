@@ -1,8 +1,8 @@
 // 图表配置工厂：统一浅色（后台）与深色（大屏）两套主题，供统计页与大屏复用
 
 export const PALETTE = [
-  '#2B5AED', '#36CFC9', '#FAAD14', '#FF7875', '#9254DE',
-  '#40A9FF', '#52C41A', '#FF9C6E', '#597EF7', '#F759AB'
+  '#3B82F6', '#06B6D4', '#F59E0B', '#EF4444', '#8B5CF6',
+  '#10B981', '#F97316', '#6366F1', '#EC4899', '#14B8A6'
 ]
 
 const theme = (dark) => ({
@@ -13,7 +13,8 @@ const theme = (dark) => ({
   tooltipBg: dark ? 'rgba(8,20,40,0.94)' : 'rgba(255,255,255,0.97)',
   tooltipText: dark ? '#e6f2ff' : '#1F2329',
   legend: dark ? 'rgba(180,215,255,0.85)' : '#646A73',
-  itemBorder: dark ? 'rgba(6,16,34,0.9)' : '#FFFFFF'
+  itemBorder: dark ? 'rgba(6,16,34,0.9)' : '#FFFFFF',
+  track: dark ? 'rgba(120,180,255,0.08)' : '#F3F5FA'
 })
 
 const hexToRgba = (hex, alpha) => {
@@ -27,11 +28,12 @@ const tooltipCommon = (t) => ({
   borderWidth: 0,
   padding: [8, 12],
   textStyle: { color: t.tooltipText, fontSize: 12 },
-  extraCssText: 'border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.18);'
+  extraCssText: 'border-radius:10px;box-shadow:0 10px 30px rgba(15,35,80,0.16);'
 })
 
-const legendCommon = (t) => ({
+const legendCommon = (t, many = false) => ({
   bottom: 0,
+  type: many ? 'scroll' : 'plain',
   icon: 'circle',
   itemWidth: 8,
   itemHeight: 8,
@@ -39,30 +41,91 @@ const legendCommon = (t) => ({
   textStyle: { color: t.legend, fontSize: 12 }
 })
 
-// 饼图 / 玫瑰图
+const truncate = (text, max = 10) => {
+  const s = String(text ?? '')
+  return s.length > max ? `${s.slice(0, max)}…` : s
+}
+
+// 纵向/横向渐变
+const gradient = (color, horizontal = false, dark = false) => ({
+  type: 'linear',
+  x: 0,
+  y: 0,
+  x2: horizontal ? 1 : 0,
+  y2: horizontal ? 0 : 1,
+  colorStops: [
+    { offset: 0, color: hexToRgba(color, dark ? 0.95 : 0.92) },
+    { offset: 1, color: hexToRgba(color, dark ? 0.55 : 0.5) }
+  ]
+})
+
+// 饼图 / 环形图 / 玫瑰图
 export function pieOption(data, { dark = false, rose = false, unit = '' } = {}) {
   const t = theme(dark)
+  const rows = (data || []).map((d) => ({ ...d, value: Number(d.value) || 0 }))
+  const total = rows.reduce((sum, item) => sum + item.value, 0)
+  const many = rows.length > 6
+  const showLabel = rows.length > 0 && rows.length <= 6
+
   return {
     color: PALETTE,
     tooltip: { trigger: 'item', ...tooltipCommon(t), formatter: `{b}<br/>{c} ${unit}（{d}%）` },
-    legend: legendCommon(t),
+    legend: legendCommon(t, many),
+    graphic: rose || !total
+      ? []
+      : [
+          {
+            type: 'text',
+            left: 'center',
+            top: '36%',
+            silent: true,
+            style: {
+              text: String(total),
+              fill: t.text,
+              fontSize: 26,
+              fontWeight: 700,
+              fontFamily: 'DIN Alternate, Arial, sans-serif',
+              textAlign: 'center'
+            }
+          },
+          {
+            type: 'text',
+            left: 'center',
+            top: '46%',
+            silent: true,
+            style: { text: '总计', fill: t.sub, fontSize: 11, textAlign: 'center' }
+          }
+        ],
     series: [
       {
         type: 'pie',
-        radius: rose ? ['18%', '66%'] : ['46%', '68%'],
+        radius: rose ? ['18%', '66%'] : ['52%', '72%'],
         center: ['50%', '44%'],
         roseType: rose ? 'radius' : false,
         avoidLabelOverlap: true,
-        itemStyle: { borderColor: t.itemBorder, borderWidth: 2, borderRadius: 4 },
-        label: { color: t.text, fontSize: 12, formatter: '{b}\n{d}%' },
-        labelLine: { lineStyle: { color: t.axis } },
-        data: data || []
+        minAngle: 2,
+        itemStyle: {
+          borderColor: t.itemBorder,
+          borderWidth: 3,
+          borderRadius: 6,
+          shadowBlur: dark ? 0 : 8,
+          shadowColor: 'rgba(43,90,237,0.10)'
+        },
+        label: {
+          show: showLabel,
+          color: t.text,
+          fontSize: 12,
+          formatter: '{b}\n{d}%'
+        },
+        labelLine: { show: showLabel, length: 8, length2: 10, lineStyle: { color: t.axis } },
+        emphasis: { scale: true, scaleSize: 6, label: { fontWeight: 700 } },
+        data: rows
       }
     ]
   }
 }
 
-// 柱状图（支持横向 / 彩色）
+// 柱状图（支持横向 / 彩色 / 渐变）
 export function barOption({
   categories = [],
   values = [],
@@ -74,9 +137,13 @@ export function barOption({
 } = {}) {
   const t = theme(dark)
   const values2 = values.map((v) => (typeof v === 'string' ? Number(v) : v))
-  const items = colorful
-    ? values2.map((v, i) => ({ value: v, itemStyle: { color: PALETTE[i % PALETTE.length] } }))
-    : values2
+  const items = values2.map((v, i) => {
+    const base = colorful ? PALETTE[i % PALETTE.length] : (color || '#3B82F6')
+    return {
+      value: v,
+      itemStyle: { color: gradient(base, horizontal, dark) }
+    }
+  })
 
   const categoryAxis = {
     type: 'category',
@@ -87,7 +154,8 @@ export function barOption({
       color: t.sub,
       fontSize: 11,
       interval: 0,
-      rotate: !horizontal && categories.length > 6 ? 28 : 0
+      rotate: !horizontal && categories.length > 6 ? 26 : 0,
+      formatter: (value) => truncate(value, horizontal ? 12 : 10)
     }
   }
   const valueAxis = {
@@ -102,28 +170,34 @@ export function barOption({
     color: PALETTE,
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: { type: 'shadow', shadowStyle: { color: dark ? 'rgba(80,150,255,0.08)' : 'rgba(43,90,237,0.06)' } },
       ...tooltipCommon(t),
       valueFormatter: (v) => `${v} ${unit}`
     },
-    grid: { left: 8, right: 20, top: 26, bottom: 6, containLabel: true },
+    grid: { left: 8, right: 22, top: 30, bottom: 8, containLabel: true },
     xAxis: horizontal ? valueAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
     series: [
       {
         type: 'bar',
         data: items,
-        barMaxWidth: 26,
+        barMaxWidth: 22,
+        showBackground: true,
+        backgroundStyle: { color: t.track, borderRadius: 8 },
         itemStyle: {
-          borderRadius: horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0],
-          ...(color ? { color } : {})
+          borderRadius: horizontal ? [0, 8, 8, 0] : [8, 8, 0, 0],
+          ...(color && !colorful ? { color: gradient(color, horizontal, dark) } : {})
         },
         label: {
           show: true,
           position: horizontal ? 'right' : 'top',
+          distance: 4,
           color: t.sub,
-          fontSize: 11
-        }
+          fontSize: 11,
+          formatter: ({ value }) => `${value}${unit ? ' ' + unit : ''}`
+        },
+        emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(43,90,237,0.25)' } },
+        animationDuration: 900
       }
     ]
   }
@@ -136,7 +210,7 @@ export function lineOption({
   dark = false,
   area = true,
   smooth = true,
-  color = '#2B5AED',
+  color = '#3B82F6',
   unit = ''
 } = {}) {
   const t = theme(dark)
@@ -171,8 +245,10 @@ export function lineOption({
         smooth,
         symbol: 'circle',
         symbolSize: 6,
-        lineStyle: { width: 3, color },
-        itemStyle: { color },
+        showSymbol: false,
+        lineStyle: { width: 3, color, shadowBlur: 10, shadowColor: hexToRgba(color, 0.35) },
+        itemStyle: { color, borderWidth: 2, borderColor: t.itemBorder },
+        emphasis: { focus: 'series', scale: 1.6 },
         areaStyle: area
           ? {
               color: {
@@ -182,7 +258,7 @@ export function lineOption({
                 x2: 0,
                 y2: 1,
                 colorStops: [
-                  { offset: 0, color: hexToRgba(color, dark ? 0.45 : 0.28) },
+                  { offset: 0, color: hexToRgba(color, dark ? 0.45 : 0.26) },
                   { offset: 1, color: hexToRgba(color, 0) }
                 ]
               }
@@ -193,32 +269,38 @@ export function lineOption({
   }
 }
 
-// 漏斗图
+// 漏斗图（用于孵化阶段）
 export function funnelOption(data, { dark = false } = {}) {
   const t = theme(dark)
+  const rows = (data || []).map((d) => ({ ...d, value: Number(d.value) || 0 }))
   return {
     color: PALETTE,
-    tooltip: { trigger: 'item', ...tooltipCommon(t), formatter: '{b}: {c}' },
+    tooltip: { trigger: 'item', ...tooltipCommon(t), formatter: '{b}: {c} 项' },
     legend: legendCommon(t),
     series: [
       {
         type: 'funnel',
-        left: '10%',
-        right: '10%',
-        top: 16,
+        left: '8%',
+        right: '8%',
+        top: 14,
         bottom: 34,
-        minSize: '22%',
-        gap: 2,
-        label: { color: t.text, fontSize: 12, formatter: '{b}: {c}' },
-        itemStyle: { borderColor: t.itemBorder, borderWidth: 2 },
-        data: data || []
+        minSize: '24%',
+        gap: 3,
+        sort: 'descending',
+        label: {
+          color: t.text,
+          fontSize: 12,
+          formatter: '{b}: {c}'
+        },
+        itemStyle: { borderColor: t.itemBorder, borderWidth: 2, opacity: 0.92 },
+        data: rows
       }
     ]
   }
 }
 
 // 仪表盘（用于孵化进度等百分比指标）
-export function gaugeOption(value = 0, { dark = false, name = '', color = '#2B5AED' } = {}) {
+export function gaugeOption(value = 0, { dark = false, name = '', color = '#3B82F6' } = {}) {
   const t = theme(dark)
   return {
     series: [
