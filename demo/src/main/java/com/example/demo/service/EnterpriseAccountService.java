@@ -24,6 +24,9 @@ public interface EnterpriseAccountService {
     /** 查询充值成功次数 */
     int countSuccessRecharges(Long enterpriseId);
 
+    /** 查询累计消费金额 */
+    BigDecimal getTotalSpent(Long enterpriseId);
+
     /** 分页查询交易记录 */
     Map<String, Object> getRecordsPage(Long enterpriseId, String type, Integer page, Integer size);
 

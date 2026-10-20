@@ -19,22 +19,24 @@
         </el-input>
       </div>
 
-      <div class="content-card" style="padding: 0; overflow: hidden;">
-        <el-table :data="experts" style="width: 100%" v-loading="loading">
-          <el-table-column prop="id" label="编号" width="80" />
-          <el-table-column prop="username" label="用户名" width="120" />
-          <el-table-column prop="real_name" label="姓名" width="100" />
-          <el-table-column prop="phone" label="电话" width="140" />
-          <el-table-column prop="email" label="邮箱" width="200" />
-          <el-table-column prop="field" label="研究领域" width="130">
+      <div class="content-card table-card">
+        <el-table :data="experts" style="width: 100%" table-layout="fixed" v-loading="loading">
+          <el-table-column prop="id" label="编号" width="70" align="center" />
+          <el-table-column prop="username" label="用户名" width="110" show-overflow-tooltip />
+          <el-table-column prop="real_name" label="姓名" width="90" show-overflow-tooltip />
+          <el-table-column prop="phone" label="电话" width="120" show-overflow-tooltip>
+            <template #default="scope">{{ scope.row.phone || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="email" label="邮箱" width="190" show-overflow-tooltip />
+          <el-table-column prop="field" label="研究领域" width="110">
             <template #default="scope">
               <el-tag size="small" effect="light" type="success">{{ scope.row.field || '未设置' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="title" label="职称" width="100" />
-          <el-table-column prop="organization" label="所属机构" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="create_time" label="创建时间" width="170" />
-          <el-table-column label="操作" width="160" fixed="right">
+          <el-table-column prop="title" label="职称" width="90" show-overflow-tooltip />
+          <el-table-column prop="organization" label="所属机构" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="create_time" label="创建时间" width="150" :formatter="formatTime" />
+          <el-table-column label="操作" width="130" fixed="right" align="center">
             <template #default="scope">
               <el-button type="primary" size="small" link @click="editExpert(scope.row)">编辑</el-button>
               <el-button type="danger" size="small" link @click="deleteExpert(scope.row.id)">删除</el-button>
@@ -181,11 +183,29 @@ const deleteExpert = async (id) => {
   } catch { ElMessage.error('删除失败') }
 }
 
+const formatTime = (row, column, value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 const handleSizeChange = (size) => { pageSize.value = size; getExperts() }
 const handleCurrentChange = (current) => { currentPage.value = current; getExperts() }
 </script>
 
 <style scoped>
-.manage-content { max-width: var(--content-max-width-wide); margin: 0 auto; padding: var(--spacing-xl); }
+.manage-content {
+  width: 100%;
+  max-width: var(--content-max-width-wide);
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+  box-sizing: border-box;
+}
 .search-input { max-width: 420px; }
+.table-card { padding: 0; overflow-x: auto; }
+.table-card :deep(.el-table) { min-width: 1120px; }
+.table-card :deep(.el-table__inner-wrapper) { border-radius: var(--radius-lg); }
+.table-card :deep(.el-table th.el-table__cell) { background: #f8fafd; }
 </style>

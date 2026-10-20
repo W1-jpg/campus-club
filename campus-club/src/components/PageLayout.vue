@@ -260,6 +260,7 @@ const logout = () => {
 .main-area {
   margin-left: 240px;
   flex: 1;
+  min-width: 0; /* 允许内容区收缩，避免宽表格把整页撑出横向滚动条 */
   min-height: 100vh;
   transition: margin-left var(--transition-base);
 }

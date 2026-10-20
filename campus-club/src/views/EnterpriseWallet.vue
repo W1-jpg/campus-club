@@ -15,6 +15,16 @@
         </div>
       </div>
 
+      <el-alert
+        v-if="payServiceDown"
+        class="pay-down-alert"
+        title="支付服务未启动"
+        type="warning"
+        show-icon
+        :closable="false"
+        description="钱包与支付接口由 demo 后端（8080）提供，请先启动 Spring Boot 后刷新页面。"
+      />
+
       <!-- 余额与统计概览 -->
       <div class="wallet-overview">
         <!-- 主余额卡片 -->
@@ -79,7 +89,7 @@
       </div>
 
       <div class="content-card">
-        <el-tabs v-model="activeTab" @tab-change="loadTransactions" class="wallet-tabs">
+        <el-tabs v-model="activeTab" @tab-change="onTabChange" class="wallet-tabs">
           <el-tab-pane name="recharge">
             <template #label><span class="tab-label">📥 充值记录</span></template>
           </el-tab-pane>
@@ -249,14 +259,21 @@ const wallet = ref({ balance: 0, updateTime: '' })
 const stats = ref({ totalRecharge: 0, totalSpend: 0, rechargeCount: 0 })
 
 const enterpriseId = () => parseInt(localStorage.getItem('enterpriseId') || '0')
+const payServiceDown = ref(false)
 
 const loadWallet = async () => {
   const eid = enterpriseId()
   if (!eid) return
   try {
     const r = await request.get(`/api/alipay/account/${eid}/stats`)
-    if (r.code === 200) { wallet.value = r.data.wallet || wallet.value; stats.value = r.data.stats || stats.value }
-  } catch {}
+    if (r.code === 200) {
+      payServiceDown.value = false
+      wallet.value = r.data.wallet || wallet.value
+      stats.value = r.data.stats || stats.value
+    }
+  } catch (e) {
+    if (!e.status) payServiceDown.value = true
+  }
 }
 
 /* ========== 交易记录 ========== */
@@ -275,10 +292,18 @@ const loadTransactions = async () => {
     const r = await request.get(`/api/alipay/records/${eid}`, {
       params: { type: activeTab.value, page: pageNum.value, size: pageSize.value }
     })
-    if (r.code === 200) { transactions.value = r.data.records || []; total.value = r.data.total || 0 }
-  } catch { ElMessage.error('加载交易记录失败') }
-  finally { loading.value = false }
+    if (r.code === 200) {
+      payServiceDown.value = false
+      transactions.value = r.data.records || []
+      total.value = r.data.total || 0
+    }
+  } catch (e) {
+    if (!e.status) payServiceDown.value = true
+    else ElMessage.error(e.msg || '加载交易记录失败')
+  } finally { loading.value = false }
 }
+
+const onTabChange = () => { pageNum.value = 1; loadTransactions() }
 
 /* ========== 充值弹窗 ========== */
 const rechargeDlg = ref(false)
@@ -321,13 +346,18 @@ const doRecharge = async () => {
       ElMessage.error(r.msg || '创建支付订单失败')
     }
   } catch (e) {
-    ElMessage.error(e.msg || '创建订单失败')
+    if (!e.status) {
+      payServiceDown.value = true
+      ElMessage.error('支付服务未启动，请先启动 demo 后端（8080）后重试')
+    } else {
+      ElMessage.error(e.msg || '创建订单失败')
+    }
   }
   finally { recharging.value = false }
 }
 
 /* ========== 工具函数 ========== */
-const formatMoney = (v) => (v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const formatMoney = (v) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const statusTag = (s) => {
   const map = { '成功': 'success', '已到账': 'success', '处理中': 'warning', '失败': 'danger', '已退款': 'info' }
   return map[s] || 'info'
@@ -343,6 +373,7 @@ onMounted(() => { loadWallet(); loadTransactions() })
 
 <style scoped>
 .wallet-content { max-width: var(--content-max-width-wide); margin: 0 auto; padding: var(--spacing-xl); }
+.pay-down-alert { margin-bottom: var(--spacing-lg); border-radius: var(--radius-lg); }
 
 /* ===== 页面头部 ===== */
 .page-hero { background: var(--gradient-hero); border-radius: var(--radius-xl); padding: var(--spacing-xxl) var(--spacing-xxxl); margin-bottom: var(--spacing-xl); color: var(--text-inverse); box-shadow: var(--shadow-lg); }

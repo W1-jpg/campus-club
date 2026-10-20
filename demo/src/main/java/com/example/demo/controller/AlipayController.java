@@ -1,44 +1,64 @@
 package com.example.demo.controller;
 
 import com.example.demo.entity.EnterpriseAccount;
-import com.example.demo.entity.RechargeRecord;
 import com.example.demo.service.EnterpriseAccountService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/alipay")
 public class AlipayController {
 
+    private static final Logger log = LoggerFactory.getLogger(AlipayController.class);
+
     @Autowired
     private EnterpriseAccountService accountService;
 
     /**
-     * 创建充值订单 → 返回支付表单HTML（前端自动提交跳转支付宝收银台）
+     * 创建充值订单 → 返回支付宝支付表单 HTML
      */
     @PostMapping("/recharge")
-    public Map<String, Object> recharge(@RequestBody Map<String, Object> req) throws Exception {
-        Long enterpriseId = Long.valueOf(req.get("enterpriseId").toString());
-        BigDecimal amount = new BigDecimal(req.get("amount").toString());
-        String remark = req.containsKey("remark") ? req.get("remark").toString() : null;
-        String payMethod = req.containsKey("payMethod") ? req.get("payMethod").toString() : "alipay";
+    public Map<String, Object> recharge(@RequestBody Map<String, Object> req) {
+        try {
+            Object enterpriseIdRaw = req.get("enterpriseId");
+            Object amountRaw = req.get("amount");
+            if (enterpriseIdRaw == null || amountRaw == null) {
+                return result(400, "缺少企业ID或充值金额", null);
+            }
 
-        String payForm = accountService.createRechargeOrder(enterpriseId, amount, payMethod, remark);
+            Long enterpriseId;
+            BigDecimal amount;
+            try {
+                enterpriseId = Long.valueOf(String.valueOf(enterpriseIdRaw).trim());
+                amount = new BigDecimal(String.valueOf(amountRaw).trim());
+            } catch (NumberFormatException e) {
+                return result(400, "企业ID或金额格式不正确", null);
+            }
+            if (enterpriseId <= 0) {
+                return result(400, "企业ID不合法", null);
+            }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("data", payForm);
-        result.put("msg", "success");
-        return result;
+            String remark = req.get("remark") == null ? null : String.valueOf(req.get("remark"));
+            String payMethod = req.get("payMethod") == null ? "alipay" : String.valueOf(req.get("payMethod"));
+
+            String payForm = accountService.createRechargeOrder(enterpriseId, amount, payMethod, remark);
+            return result(200, "success", payForm);
+        } catch (IllegalArgumentException e) {
+            return result(400, e.getMessage(), null);
+        } catch (Exception e) {
+            log.error("创建充值订单失败", e);
+            return result(500, "创建支付订单失败，请稍后重试", null);
+        }
     }
 
     /**
-     * 支付宝异步通知（支付成功回调 — 需要 natapp 让支付宝访问到你）
+     * 支付宝异步通知（需要公网可访问的 notify_url）
      */
     @PostMapping("/notify")
     @ResponseBody
@@ -47,7 +67,7 @@ public class AlipayController {
     }
 
     /**
-     * 获取企业账户 + 统计信息（前端钱包页面展示用）
+     * 获取企业账户 + 统计信息
      */
     @GetMapping("/account/{enterpriseId}/stats")
     public Map<String, Object> getAccountStats(@PathVariable Long enterpriseId) {
@@ -59,23 +79,17 @@ public class AlipayController {
 
         Map<String, Object> statsData = new HashMap<>();
         statsData.put("totalRecharge", account.getTotalRecharge());
-        statsData.put("totalSpend", BigDecimal.ZERO);
+        statsData.put("totalSpend", accountService.getTotalSpent(enterpriseId));
         statsData.put("rechargeCount", accountService.countSuccessRecharges(enterpriseId));
 
-        Map<String, Object> result = new HashMap<>();
         Map<String, Object> data = new HashMap<>();
         data.put("wallet", walletData);
         data.put("stats", statsData);
-
-        result.put("code", 200);
-        result.put("data", data);
-        result.put("msg", "success");
-        return result;
+        return result(200, "success", data);
     }
 
     /**
      * 获取充值/消费记录（分页）
-     * 前端表格展示：编号、订单号、类型、金额、支付方式、状态、备注、时间
      */
     @GetMapping("/records/{enterpriseId}")
     public Map<String, Object> getRecords(
@@ -85,11 +99,14 @@ public class AlipayController {
             @RequestParam(defaultValue = "recharge") String type) {
 
         Map<String, Object> pageResult = accountService.getRecordsPage(enterpriseId, type, page, size);
+        return result(200, "success", pageResult);
+    }
 
+    private Map<String, Object> result(int code, String msg, Object data) {
         Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("data", pageResult);
-        result.put("msg", "success");
+        result.put("code", code);
+        result.put("msg", msg);
+        result.put("data", data);
         return result;
     }
 }
