@@ -1,8 +1,10 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.JwtUser;
 import com.example.demo.entity.Resource;
 import com.example.demo.repository.ResourceRepository;
 import com.example.demo.service.EnterpriseAccountService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,26 +79,30 @@ public class ExpenseController {
 
     /** 确认支出 */
     @PostMapping("/pay")
-    public Map<String, Object> pay(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> pay(@RequestBody Map<String, Object> req,
+                                   @AuthenticationPrincipal JwtUser user) {
         try {
-            Object enterpriseIdRaw = req.get("enterpriseId");
-            Object resourceIdRaw = req.get("resourceId");
-            Object amountRaw = req.get("amount");
-            if (enterpriseIdRaw == null || resourceIdRaw == null || amountRaw == null) {
-                return result(400, "缺少企业、资源或金额", null);
+            if (user == null || !user.isEnterprise()) {
+                return result(403, "只有企业账号可以支出", null);
             }
 
-            Long enterpriseId;
+            Object resourceIdRaw = req.get("resourceId");
+            Object amountRaw = req.get("amount");
+            if (resourceIdRaw == null || amountRaw == null) {
+                return result(400, "缺少资源或金额", null);
+            }
+
+            // 企业身份只取令牌，忽略请求体里的 enterpriseId，避免越权扣款
+            Long enterpriseId = user.getId();
             Long resourceId;
             BigDecimal amount;
             try {
-                enterpriseId = Long.valueOf(String.valueOf(enterpriseIdRaw).trim());
                 resourceId = Long.valueOf(String.valueOf(resourceIdRaw).trim());
                 amount = new BigDecimal(String.valueOf(amountRaw).trim());
             } catch (NumberFormatException e) {
                 return result(400, "参数格式不正确", null);
             }
-            if (enterpriseId <= 0 || resourceId <= 0) {
+            if (enterpriseId == null || enterpriseId <= 0 || resourceId <= 0) {
                 return result(400, "参数不合法", null);
             }
 
@@ -135,7 +141,18 @@ public class ExpenseController {
 
     /** 某个资源收到的资助明细（资源发布方查看） */
     @GetMapping("/resource/{resourceId}")
-    public Map<String, Object> resourceExpenses(@PathVariable Long resourceId) {
+    public Map<String, Object> resourceExpenses(@PathVariable Long resourceId,
+                                                @AuthenticationPrincipal JwtUser user) {
+        Resource resource = resourceRepository.findById(resourceId).orElse(null);
+        if (resource == null) {
+            return result(404, "资源不存在", null);
+        }
+        // 企业只能查看自己发布的资源资助明细
+        if (user != null && user.isEnterprise() && resource.getEnterpriseId() != null
+                && !resource.getEnterpriseId().equals(user.getId())) {
+            return result(403, "只能查看自己资源的资助明细", null);
+        }
+
         List<Map<String, Object>> records = jdbcTemplate.queryForList(
                 "SELECT e.id, e.enterprise_id AS enterpriseId, e.amount, e.remark, e.create_time AS createTime, " +
                 "COALESCE(NULLIF(u.company_name, ''), u.username, CONCAT('企业', e.enterprise_id)) AS enterpriseName " +

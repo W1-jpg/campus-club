@@ -37,4 +37,8 @@ public class Resource {
 
     @Column(name = "update_time")
     private Date updateTime;
+
+    /** 资源发布企业ID */
+    @Column(name = "enterprise_id")
+    private Long enterpriseId;
 }
