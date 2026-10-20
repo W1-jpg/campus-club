@@ -29,6 +29,23 @@
                 <span class="form-col__icon">📝</span>
                 <h3>基本信息</h3>
               </div>
+              <el-form-item label="封面图片">
+                <el-upload
+                  class="cover-uploader"
+                  action="#"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  accept="image/*"
+                  :on-change="handleCoverChange"
+                >
+                  <img v-if="coverPreview" :src="coverPreview" class="cover-preview" alt="封面预览" />
+                  <div v-else class="cover-empty">
+                    <span class="cover-empty__icon">🖼️</span>
+                    <span class="cover-empty__text">点击上传封面</span>
+                    <small>建议 16:10 · JPG/PNG/WebP · ≤5MB</small>
+                  </div>
+                </el-upload>
+              </el-form-item>
               <el-form-item label="成果名称" prop="title">
                 <el-input v-model="form.title" placeholder="给你的成果起一个响亮的名字" />
               </el-form-item>
@@ -116,6 +133,18 @@ const submitting = ref(false)
 const form = reactive({ title: '', type: '', description: '', community: '', clubFiles: [], achievementFiles: [] })
 const clubFileList = ref([])
 const achievementFileList = ref([])
+const coverFile = ref(null)
+const coverPreview = ref('')
+
+const handleCoverChange = (uploadFile) => {
+  const raw = uploadFile.raw
+  if (!raw) return
+  if (!/^image\//.test(raw.type)) { ElMessage.warning('请选择图片文件'); return }
+  if (raw.size > 5 * 1024 * 1024) { ElMessage.warning('封面图片不能超过 5MB'); return }
+  coverFile.value = raw
+  if (coverPreview.value) URL.revokeObjectURL(coverPreview.value)
+  coverPreview.value = URL.createObjectURL(raw)
+}
 
 const typeOptions = [
   { label: '软件作品', value: '软件' }, { label: '学术论文', value: '论文' },
@@ -157,6 +186,7 @@ const submitForm = async () => {
     const formData = new FormData()
     formData.append('title', form.title); formData.append('type', form.type)
     formData.append('description', form.description); formData.append('community', form.community || '')
+    if (coverFile.value) formData.append('coverFile', coverFile.value)
     form.clubFiles.forEach(file => formData.append('clubFiles', file))
     form.achievementFiles.forEach(file => formData.append('achievementFiles', file))
     // 通过统一的 axios 实例走 Vite 代理，自动携带 JWT；学生身份由服务端从令牌解析
@@ -167,7 +197,14 @@ const submitForm = async () => {
   finally { submitting.value = false }
 }
 
-const resetForm = () => { formRef.value?.resetFields(); form.clubFiles = []; form.achievementFiles = []; clubFileList.value = []; achievementFileList.value = [] }
+const resetForm = () => {
+  formRef.value?.resetFields()
+  form.clubFiles = []; form.achievementFiles = []
+  clubFileList.value = []; achievementFileList.value = []
+  coverFile.value = null
+  if (coverPreview.value) URL.revokeObjectURL(coverPreview.value)
+  coverPreview.value = ''
+}
 </script>
 
 <style scoped>
@@ -192,6 +229,23 @@ const resetForm = () => { formRef.value?.resetFields(); form.clubFiles = []; for
 
 /* 表单卡片 */
 .upload-form-card { border-radius: var(--radius-xl); border: 1px solid var(--border-color); box-shadow: var(--shadow-card); }
+
+/* 封面选择 */
+.cover-uploader :deep(.el-upload) { width: 100%; }
+.cover-preview {
+  display: block; width: 100%; max-width: 300px; aspect-ratio: 16 / 10;
+  object-fit: cover; border-radius: 12px; box-shadow: var(--shadow-md);
+}
+.cover-empty {
+  width: 100%; max-width: 300px; aspect-ratio: 16 / 10;
+  border: 1.5px dashed #cdd5e6; border-radius: 12px; background: #fafbff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; color: var(--text-tertiary); cursor: pointer; transition: all 0.2s;
+}
+.cover-empty:hover { border-color: var(--color-primary); background: #f5f8ff; }
+.cover-empty__icon { font-size: 26px; }
+.cover-empty__text { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.cover-empty small { font-size: 11px; }
 
 /* 三栏布局 */
 .form-layout {

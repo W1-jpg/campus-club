@@ -834,7 +834,11 @@ app.post('/api/auth/register/enterprise', (req, res) => {
 });
 
 // 上传成果
-app.post('/api/result/upload', upload.fields([{ name: 'clubFiles', maxCount: 10 }, { name: 'achievementFiles', maxCount: 10 }]), (req, res) => {
+app.post('/api/result/upload', upload.fields([
+  { name: 'clubFiles', maxCount: 10 },
+  { name: 'achievementFiles', maxCount: 10 },
+  { name: 'coverFile', maxCount: 1 }
+]), (req, res) => {
   console.log('接收到上传请求');
   if (req.user.userType !== 'student') {
     res.status(403).json({ code: 403, msg: '只有学生可以上传成果' });
@@ -854,9 +858,25 @@ app.post('/api/result/upload', upload.fields([{ name: 'clubFiles', maxCount: 10 
     return;
   }
 
+  // 封面：只允许常见图片格式且不超过 5MB
+  const coverFile = (files.coverFile || [])[0];
+  let coverPath = '';
+  if (coverFile) {
+    const ext = path.extname(coverFile.originalname || '').toLowerCase();
+    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)
+      && /^image\//.test(coverFile.mimetype || '')
+      && coverFile.size <= 5 * 1024 * 1024;
+    if (!allowed) {
+      fs.unlink(coverFile.path, () => {});
+      res.status(400).json({ code: 400, msg: '封面仅支持 jpg/png/webp/gif，且不超过 5MB' });
+      return;
+    }
+    coverPath = '/uploads/' + path.basename(coverFile.path);
+  }
+
   // 插入成果（学生身份取自 JWT，忽略前端传入的 studentId）
-  const achievementSql = 'INSERT INTO achievement (title, description, type, student_id, college) VALUES (?, ?, ?, ?, ?)';
-  db.query(achievementSql, [title, description, type, studentId, college], (err, result) => {
+  const achievementSql = 'INSERT INTO achievement (title, description, type, student_id, college, cover) VALUES (?, ?, ?, ?, ?, ?)';
+  db.query(achievementSql, [title, description, type, studentId, college, coverPath], (err, result) => {
     if (err) {
       console.error('Error inserting achievement:', err);
       res.status(500).json({ code: 500, msg: '上传失败' });
@@ -1024,6 +1044,7 @@ app.get('/api/result/my', (req, res) => {
       description: item.description,
       studentId: item.student_id,
       filePath: item.file_path,
+      cover: item.cover || '',
       fileName: item.file_name,
       createTime: item.create_time,
       updateTime: item.update_time,
@@ -1170,6 +1191,7 @@ app.get('/api/result/list', (req, res) => {
           description: achievement.description,
           studentId: achievement.student_id,
           filePath: achievement.file_path,
+          cover: achievement.cover || '',
           fileName: achievement.file_name,
           createTime: achievement.create_time,
           updateTime: achievement.update_time,
@@ -1208,6 +1230,7 @@ app.get('/api/result/list', (req, res) => {
 
 // 确保成果表有 view_count 列，并确保 comment/点赞表存在
 db.query(`ALTER TABLE achievement ADD COLUMN view_count INT DEFAULT 0`, (err) => {});
+db.query(`ALTER TABLE achievement ADD COLUMN cover VARCHAR(255)`, (err) => {});
 db.query(`CREATE TABLE IF NOT EXISTS comment (
   id INT PRIMARY KEY AUTO_INCREMENT,
   achievement_id INT NOT NULL,
@@ -1253,6 +1276,7 @@ app.get('/api/result/browse', (req, res) => {
       a.college, a.create_time AS createTime, a.update_time AS updateTime, a.status,
       a.score, a.incubation_status AS incubationStatus, a.review_status AS reviewStatus,
       a.view_count AS viewCount,
+      a.cover,
       s.real_name AS studentName,
       (SELECT COUNT(*) FROM likes lk2 WHERE lk2.achievement_id = a.id) AS likeCount,
       (SELECT COUNT(*) FROM comment cm WHERE cm.achievement_id = a.id) AS commentCount
@@ -1708,6 +1732,7 @@ app.get('/api/result/my', (req, res) => {
           description: achievement.description,
           studentId: achievement.student_id,
           filePath: achievement.file_path,
+          cover: achievement.cover || '',
           fileName: achievement.file_name,
           createTime: achievement.create_time,
           updateTime: achievement.update_time,
