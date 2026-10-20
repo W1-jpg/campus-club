@@ -23,18 +23,15 @@
         <section class="screen-col">
           <div class="screen-panel">
             <h3 class="screen-panel__title">成果类型分布</h3>
-            <BaseChart v-if="has('typeDist')" :option="opts.type" height="240px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.type" height="240px" />
           </div>
           <div class="screen-panel">
             <h3 class="screen-panel__title">学院成果分布</h3>
-            <BaseChart v-if="has('collegeDist')" :option="opts.college" height="240px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.college" height="240px" />
           </div>
           <div class="screen-panel">
             <h3 class="screen-panel__title">资源类型分布</h3>
-            <BaseChart v-if="has('resType')" :option="opts.resType" height="220px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.resType" height="220px" />
           </div>
         </section>
 
@@ -48,19 +45,16 @@
           </div>
           <div class="screen-panel screen-panel--grow">
             <h3 class="screen-panel__title">成果上传趋势（近 12 个月）</h3>
-            <BaseChart v-if="has('monthly')" :option="opts.monthly" height="300px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.monthly" height="300px" />
           </div>
           <div class="screen-split">
             <div class="screen-panel">
               <h3 class="screen-panel__title">评审状态</h3>
-              <BaseChart v-if="has('review')" :option="opts.review" height="220px" />
-              <div v-else class="screen-empty">暂无数据</div>
+              <BaseChart :option="opts.review" height="220px" />
             </div>
             <div class="screen-panel">
               <h3 class="screen-panel__title">孵化状态</h3>
-              <BaseChart v-if="has('incubation')" :option="opts.incubation" height="220px" />
-              <div v-else class="screen-empty">暂无数据</div>
+              <BaseChart :option="opts.incubation" height="220px" />
             </div>
           </div>
         </section>
@@ -69,18 +63,15 @@
         <section class="screen-col">
           <div class="screen-panel">
             <h3 class="screen-panel__title">获奖等级分布</h3>
-            <BaseChart v-if="has('awardLevel')" :option="opts.awardLevel" height="240px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.awardLevel" height="240px" />
           </div>
           <div class="screen-panel">
             <h3 class="screen-panel__title">资源申请状态</h3>
-            <BaseChart v-if="has('appStatus')" :option="opts.appStatus" height="220px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.appStatus" height="220px" />
           </div>
           <div class="screen-panel">
             <h3 class="screen-panel__title">热门资源 Top</h3>
-            <BaseChart v-if="has('topApplied')" :option="opts.topApplied" height="240px" />
-            <div v-else class="screen-empty">暂无数据</div>
+            <BaseChart :option="opts.topApplied" height="240px" />
           </div>
         </section>
       </main>
@@ -173,8 +164,6 @@ const onFsChange = () => {
 
 const exit = () => router.push('/数据可视化')
 
-const has = (key) => !!opts.value.has[key]
-
 const k = computed(() => data.value?.kpis || {})
 
 const kpiCards = computed(() => {
@@ -198,8 +187,21 @@ const kpiCards = computed(() => {
 const opts = computed(() => {
   const dark = { dark: true }
   const d = data.value
-  const empty = { has: {} }
-  if (!d) return { ...empty, type: {}, college: {}, resType: {}, monthly: {}, review: {}, incubation: {}, awardLevel: {}, appStatus: {}, topApplied: {} }
+  if (!d) {
+    // 接口尚未返回时同样给出完整图表占位，避免大屏出现空白块
+    return {
+      has: {},
+      type: pieOption([], dark),
+      college: barOption({ categories: [], values: [], ...dark }),
+      resType: pieOption([], dark),
+      monthly: lineOption({ labels: [], values: [], ...dark }),
+      review: pieOption([], dark),
+      incubation: funnelOption([], dark),
+      awardLevel: pieOption([], { ...dark, rose: true }),
+      appStatus: pieOption([], dark),
+      topApplied: barOption({ categories: [], values: [], horizontal: true, ...dark })
+    }
+  }
   const a = d.achievement
   const aw = d.award
   const r = d.resource

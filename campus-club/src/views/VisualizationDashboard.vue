@@ -63,8 +63,7 @@
             </h3>
             <span class="chart-card__meta">{{ card.meta }}</span>
           </div>
-          <BaseChart v-if="card.hasData" :option="card.option" :height="card.height || '280px'" />
-          <el-empty v-else description="暂无数据" :image-size="70" />
+          <BaseChart :option="card.option" :height="card.height || '280px'" />
         </div>
       </div>
 
@@ -123,6 +122,16 @@ const load = async () => {
   }
 }
 
+const EMPTY_DASHBOARD = {
+  achievement: {
+    typeDist: [], collegeDist: [], reviewStatusDist: [], incubationStatusDist: [], scoreDist: [],
+    monthly: { labels: [], values: [] }
+  },
+  award: { levelDist: [], yearly: { labels: [], values: [] }, orgDist: [] },
+  resource: { typeDist: [], statusDist: [], topApplied: [], totalViews: 0, totalApplies: 0 },
+  application: { statusDist: [], monthly: { labels: [], values: [] } }
+}
+
 const k = computed(() => data.value?.kpis || {})
 
 const kpiCards = computed(() => {
@@ -179,8 +188,8 @@ const insights = computed(() => {
 })
 
 const chartCards = computed(() => {
-  const d = data.value
-  if (!d) return []
+  // 即使接口尚未返回或某个维度为空，也渲染完整图表占位，避免出现大片“暂无数据”
+  const d = data.value || EMPTY_DASHBOARD
   const a = d.achievement
   const aw = d.award
   const r = d.resource

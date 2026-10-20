@@ -59,11 +59,154 @@ const gradient = (color, horizontal = false, dark = false) => ({
   ]
 })
 
+// —— 空数据时的优雅占位图：仍然渲染完整图表，而不是一块空白 ——
+const emptyTextGraphic = (t, text = '暂无数据') => [
+  {
+    type: 'text',
+    left: 'center',
+    top: '38%',
+    silent: true,
+    style: { text: '0', fill: t.text, fontSize: 26, fontWeight: 700, fontFamily: 'DIN Alternate, Arial, sans-serif' }
+  },
+  {
+    type: 'text',
+    left: 'center',
+    top: '48%',
+    silent: true,
+    style: { text, fill: t.sub, fontSize: 12 }
+  }
+]
+
+const emptyPie = (t) => ({
+  color: [t.track],
+  tooltip: { show: false },
+  legend: { show: false },
+  graphic: emptyTextGraphic(t),
+  series: [
+    {
+      type: 'pie',
+      radius: ['52%', '72%'],
+      center: ['50%', '44%'],
+      silent: true,
+      label: { show: false },
+      labelLine: { show: false },
+      itemStyle: { color: t.track, borderWidth: 0 },
+      data: [{ value: 1 }]
+    }
+  ]
+})
+
+const emptyBar = (t, { horizontal = false, unit = '' } = {}) => ({
+  color: [t.track],
+  tooltip: { show: false },
+  graphic: [
+    {
+      type: 'text',
+      left: 'center',
+      top: '44%',
+      silent: true,
+      style: { text: `暂无数据${unit ? ' · 0 ' + unit : ''}`, fill: t.sub, fontSize: 12 }
+    }
+  ],
+  grid: { left: 8, right: 22, top: 30, bottom: 8, containLabel: true },
+  xAxis: {
+    type: horizontal ? 'value' : 'category',
+    data: horizontal ? undefined : ['—'],
+    axisLine: { lineStyle: { color: t.axis } },
+    axisTick: { show: false },
+    axisLabel: { color: t.sub, fontSize: 11 },
+    splitLine: { show: false }
+  },
+  yAxis: {
+    type: horizontal ? 'category' : 'value',
+    data: horizontal ? ['—'] : undefined,
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: t.sub, fontSize: 11 },
+    splitLine: { lineStyle: { color: t.split } }
+  },
+  series: [
+    {
+      type: 'bar',
+      data: [0],
+      barMaxWidth: 22,
+      showBackground: true,
+      backgroundStyle: { color: t.track, borderRadius: 8 },
+      itemStyle: { color: t.track, borderRadius: 8 },
+      label: { show: false },
+      silent: true
+    }
+  ]
+})
+
+const emptyLine = (t, color = '#3B82F6') => ({
+  color: [color],
+  tooltip: { show: false },
+  graphic: [
+    {
+      type: 'text',
+      left: 'center',
+      top: '44%',
+      silent: true,
+      style: { text: '暂无数据', fill: t.sub, fontSize: 12 }
+    }
+  ],
+  grid: { left: 8, right: 20, top: 26, bottom: 6, containLabel: true },
+  xAxis: {
+    type: 'category',
+    boundaryGap: false,
+    data: ['—', '—', '—'],
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: t.axis } },
+    axisLabel: { show: false }
+  },
+  yAxis: {
+    type: 'value',
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: t.sub, fontSize: 11 },
+    splitLine: { lineStyle: { color: t.split } }
+  },
+  series: [
+    {
+      type: 'line',
+      data: [0, 0, 0],
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 2, color: hexToRgba(color, 0.35), type: 'dashed' },
+      areaStyle: { color: hexToRgba(color, 0.04) },
+      silent: true
+    }
+  ]
+})
+
+const emptyFunnel = (t) => ({
+  color: [t.track],
+  tooltip: { show: false },
+  graphic: emptyTextGraphic(t),
+  series: [
+    {
+      type: 'funnel',
+      left: '14%',
+      right: '14%',
+      top: 18,
+      bottom: 36,
+      minSize: '30%',
+      gap: 3,
+      silent: true,
+      label: { show: false },
+      itemStyle: { color: t.track, borderColor: t.itemBorder, borderWidth: 2 },
+      data: [{ name: '暂无数据', value: 1 }]
+    }
+  ]
+})
+
 // 饼图 / 环形图 / 玫瑰图
 export function pieOption(data, { dark = false, rose = false, unit = '' } = {}) {
   const t = theme(dark)
   const rows = (data || []).map((d) => ({ ...d, value: Number(d.value) || 0 }))
   const total = rows.reduce((sum, item) => sum + item.value, 0)
+  if (!rows.length || !total) return emptyPie(t)
   const many = rows.length > 6
   const showLabel = rows.length > 0 && rows.length <= 6
 
@@ -137,6 +280,7 @@ export function barOption({
 } = {}) {
   const t = theme(dark)
   const values2 = values.map((v) => (typeof v === 'string' ? Number(v) : v))
+  if (!categories.length) return emptyBar(t, { horizontal, unit })
   const items = values2.map((v, i) => {
     const base = colorful ? PALETTE[i % PALETTE.length] : (color || '#3B82F6')
     return {
@@ -215,6 +359,7 @@ export function lineOption({
 } = {}) {
   const t = theme(dark)
   const values2 = values.map((v) => (typeof v === 'string' ? Number(v) : v))
+  if (!labels.length) return emptyLine(t, color)
   return {
     color: [color],
     tooltip: {
@@ -273,6 +418,7 @@ export function lineOption({
 export function funnelOption(data, { dark = false } = {}) {
   const t = theme(dark)
   const rows = (data || []).map((d) => ({ ...d, value: Number(d.value) || 0 }))
+  if (!rows.length) return emptyFunnel(t)
   return {
     color: PALETTE,
     tooltip: { trigger: 'item', ...tooltipCommon(t), formatter: '{b}: {c} 项' },
