@@ -30,6 +30,9 @@ public interface EnterpriseAccountService {
     /** 主动向支付宝查询待支付订单，成功后入账（不依赖异步回调） */
     Map<String, Object> syncPendingOrders(Long enterpriseId);
 
+    /** 资源采购支出：扣余额、写消费流水、写资源收入明细（同一事务） */
+    Map<String, Object> payForResource(Long enterpriseId, Long resourceId, BigDecimal amount, String remark);
+
     /** 分页查询交易记录 */
     Map<String, Object> getRecordsPage(Long enterpriseId, String type, Integer page, Integer size);
 

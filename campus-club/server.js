@@ -1248,6 +1248,18 @@ db.query(`CREATE TABLE IF NOT EXISTS likes (
   UNIQUE KEY uk_like (achievement_id, user_id, user_type)
 )`, (err) => { if (err) console.error('创建 likes 表失败:', err); });
 
+// 资源资助明细：记录企业向某个资源支付的金额
+db.query(`CREATE TABLE IF NOT EXISTS resource_expense (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  resource_id BIGINT NOT NULL,
+  enterprise_id BIGINT NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  remark VARCHAR(255),
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_resource (resource_id),
+  INDEX idx_enterprise (enterprise_id)
+)`, (err) => { if (err) console.error('创建 resource_expense 表失败:', err); });
+
 // 成果浏览列表：仅展示已审核通过 (review_status=2) 的成果，按创建时间倒序、分页返回
 app.get('/api/result/browse', (req, res) => {
   console.log('接收到成果浏览列表请求:', req.query);
@@ -2039,7 +2051,8 @@ app.get('/api/enterprise/stats/:enterpriseId', (req, res) => {
 app.get('/api/enterprise/resources/:enterpriseId', (req, res) => {
   const sql = `SELECT r.id, r.title, r.type, r.provider, r.description, r.publish_time AS publishTime,
     r.end_time AS endTime, r.status, r.view_count AS viewCount,
-    COALESCE((SELECT COUNT(*) FROM resource_application ra WHERE ra.resource_id = r.id), 0) AS applyCount
+    COALESCE((SELECT COUNT(*) FROM resource_application ra WHERE ra.resource_id = r.id), 0) AS applyCount,
+    COALESCE((SELECT SUM(re.amount) FROM resource_expense re WHERE re.resource_id = r.id), 0) AS receivedAmount
     FROM resource r WHERE r.enterprise_id = ? ORDER BY r.create_time DESC`;
   db.query(sql, [req.params.enterpriseId], (err, result) => {
     if (err) { res.status(500).json({ code: 500, msg: '获取失败' }); return; }
@@ -2166,7 +2179,7 @@ app.get('/api/enterprise/achievement/:id/review-detail', (req, res) => {
 // ==================== 资源相关接口 ====================
 app.get('/api/resource/list', (req, res) => {
   console.log('接收到获取资源列表请求');
-  const sql = 'SELECT id, title, type, provider, description, publish_time as publishTime, end_time as endTime, status, view_count as viewCount, apply_count as applyCount FROM resource';
+  const sql = 'SELECT id, title, type, provider, description, publish_time as publishTime, end_time as endTime, status, view_count as viewCount, apply_count as applyCount, (SELECT COALESCE(SUM(re.amount),0) FROM resource_expense re WHERE re.resource_id = resource.id) AS receivedAmount FROM resource';
   db.query(sql, (err, results) => {
     if (err) {
       console.error('获取资源列表失败:', err);
@@ -2194,7 +2207,7 @@ app.get('/api/resource/type/:type', (req, res) => {
 app.get('/api/resource/:id', (req, res) => {
   console.log('接收到获取资源详情请求:', req.params);
   const { id } = req.params;
-  const sql = 'SELECT id, title, type, provider, description, publish_time as publishTime, end_time as endTime, status, view_count as viewCount, apply_count as applyCount FROM resource WHERE id = ?';
+  const sql = 'SELECT id, title, type, provider, description, publish_time as publishTime, end_time as endTime, status, view_count as viewCount, apply_count as applyCount, (SELECT COALESCE(SUM(re.amount),0) FROM resource_expense re WHERE re.resource_id = resource.id) AS receivedAmount FROM resource WHERE id = ?';
   db.query(sql, [id], (err, results) => {
     if (err) {
       console.error('获取资源详情失败:', err);

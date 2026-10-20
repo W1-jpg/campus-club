@@ -1,14 +1,15 @@
 package com.example.demo.controller;
 
-import com.example.demo.entity.EnterpriseAccount;
 import com.example.demo.entity.Resource;
 import com.example.demo.repository.ResourceRepository;
 import com.example.demo.service.EnterpriseAccountService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,6 +31,24 @@ public class ExpenseController {
     @Autowired
     private ResourceRepository resourceRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 资源资助明细表：记录每笔支出由哪个企业付给了哪个资源 */
+    @PostConstruct
+    public void initSchema() {
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS resource_expense (" +
+                "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                "resource_id BIGINT NOT NULL, " +
+                "enterprise_id BIGINT NOT NULL, " +
+                "amount DECIMAL(12,2) NOT NULL, " +
+                "remark VARCHAR(255), " +
+                "create_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                "INDEX idx_resource (resource_id), " +
+                "INDEX idx_enterprise (enterprise_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+
     /** 可采购的资源列表（未结束） */
     @GetMapping("/resources")
     public Map<String, Object> resources() {
@@ -47,6 +66,10 @@ public class ExpenseController {
             item.put("type", resource.getType());
             item.put("provider", resource.getProvider());
             item.put("status", resource.getStatus());
+            BigDecimal received = jdbcTemplate.queryForObject(
+                    "SELECT COALESCE(SUM(amount), 0) FROM resource_expense WHERE resource_id = ?",
+                    BigDecimal.class, resource.getId());
+            item.put("receivedAmount", received);
             list.add(item);
         }
         return result(200, "success", list);
@@ -91,11 +114,10 @@ public class ExpenseController {
             String description = "资源采购：" + resource.getTitle()
                     + (remark.isEmpty() ? "" : "（" + remark + "）");
 
-            accountService.deductBalance(enterpriseId, amount, description);
+            Map<String, Object> payResult = accountService.payForResource(enterpriseId, resourceId, amount, description);
 
-            EnterpriseAccount account = accountService.getAccount(enterpriseId);
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("balance", account.getBalance());
+            data.put("balance", payResult.get("balance"));
             data.put("amount", amount);
             data.put("resourceId", resource.getId());
             data.put("resourceTitle", resource.getTitle());
@@ -109,6 +131,24 @@ public class ExpenseController {
             log.error("企业支出失败", e);
             return result(500, "支出失败，请稍后重试", null);
         }
+    }
+
+    /** 某个资源收到的资助明细（资源发布方查看） */
+    @GetMapping("/resource/{resourceId}")
+    public Map<String, Object> resourceExpenses(@PathVariable Long resourceId) {
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(
+                "SELECT e.id, e.enterprise_id AS enterpriseId, e.amount, e.remark, e.create_time AS createTime, " +
+                "COALESCE(NULLIF(u.company_name, ''), u.username, CONCAT('企业', e.enterprise_id)) AS enterpriseName " +
+                "FROM resource_expense e LEFT JOIN enterprise_user u ON e.enterprise_id = u.id " +
+                "WHERE e.resource_id = ? ORDER BY e.create_time DESC", resourceId);
+        BigDecimal total = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(amount), 0) FROM resource_expense WHERE resource_id = ?",
+                BigDecimal.class, resourceId);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("total", total);
+        data.put("records", records);
+        return result(200, "success", data);
     }
 
     private Map<String, Object> result(int code, String msg, Object data) {

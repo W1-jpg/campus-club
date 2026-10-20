@@ -18,6 +18,11 @@
           <el-table-column prop="type" label="类型" width="110"><template #default="s"><el-tag size="small" :type="typeColor(s.row.type)">{{ s.row.type }}</el-tag></template></el-table-column>
           <el-table-column prop="provider" label="提供方" width="140"/>
           <el-table-column label="申请数" width="90" align="center"><template #default="s"><el-button type="primary" link @click="viewApps(s.row)">{{ s.row.applyCount || 0 }} 人</el-button></template></el-table-column>
+          <el-table-column label="累计获得" width="130" align="right">
+            <template #default="s">
+              <el-button type="success" link @click="viewExpenses(s.row)">¥{{ money(s.row.receivedAmount) }}</el-button>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="90" align="center"><template #default="s"><el-tag size="small" :type="s.row.status==='active'?'success':'info'">{{ s.row.status==='active'?'进行中':'已下架' }}</el-tag></template></el-table-column>
           <el-table-column label="发布时间" width="160"><template #default="s">{{ fmt(s.row.publishTime) }}</template></el-table-column>
           <el-table-column label="操作" width="100" fixed="right"><template #default="s"><el-button type="danger" size="small" plain @click="removeResource(s.row.id)" v-if="s.row.status==='active'">下架</el-button></template></el-table-column>
@@ -48,6 +53,23 @@
           <el-table-column label="操作" width="170" fixed="right"><template #default="s"><template v-if="s.row.status==='待审核'"><el-button type="success" size="small" @click="approve(s.row)">批准</el-button><el-button type="danger" size="small" @click="reject(s.row)">拒绝</el-button></template><span v-else style="color:var(--text-tertiary)">已处理</span></template></el-table-column>
         </el-table>
       </el-dialog>
+
+      <el-dialog v-model="expenseDlg" :title="`资助明细：${curExpenseResource.title || ''}`" width="700px">
+        <div class="expense-total">
+          <span>累计获得资助</span>
+          <b>¥{{ money(expenseTotal) }}</b>
+        </div>
+        <el-table :data="expenseRecords" empty-text="暂无资助记录">
+          <el-table-column prop="enterpriseName" label="资助企业" min-width="160" show-overflow-tooltip />
+          <el-table-column label="金额" width="120" align="right">
+            <template #default="s">¥{{ money(s.row.amount) }}</template>
+          </el-table-column>
+          <el-table-column prop="remark" label="用途" min-width="200" show-overflow-tooltip />
+          <el-table-column label="时间" width="160">
+            <template #default="s">{{ fmt(s.row.createTime) }}</template>
+          </el-table-column>
+        </el-table>
+      </el-dialog>
     </div>
   </PageLayout>
 </template>
@@ -60,6 +82,7 @@ import PageLayout from '../components/PageLayout.vue'
 import request from '../utils/request'
 
 const resources = ref([]), applications = ref([]), loading = ref(false), dlg = ref(false), appDlg = ref(false), saving = ref(false), curResource = ref({})
+const expenseDlg = ref(false), expenseRecords = ref([]), expenseTotal = ref(0), curExpenseResource = ref({})
 const form = ref({ title:'',type:'',provider:'',publishTime:'',endTime:'',description:'',unlimited:false })
 const types = ['资金支持','设备支持','导师指导','场地提供','技术合作','实习机会','其他']
 const eid = () => parseInt(localStorage.getItem('enterpriseId')||'0')
@@ -73,6 +96,22 @@ const removeResource = async (id) => { try{await ElMessageBox.confirm('确定下
 const viewApps = async (row) => { curResource.value=row; try{const r=await request.get('/api/enterprise/applications/'+eid());applications.value=(r.data||[]).filter(a=>a.resourceId===row.id)}catch{ElMessage.error('获取失败')}; appDlg.value=true }
 const approve = async (row) => { try{await request.put('/api/enterprise/applications/'+row.id+'/status',{status:'已通过'});ElMessage.success('已批准');viewApps(curResource.value);loadResources()}catch{ElMessage.error('操作失败')} }
 const reject = async (row) => { try{await request.put('/api/enterprise/applications/'+row.id+'/status',{status:'已拒绝'});ElMessage.success('已拒绝');viewApps(curResource.value);loadResources()}catch{ElMessage.error('操作失败')} }
+const money = (v) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const viewExpenses = async (row) => {
+  curExpenseResource.value = row
+  expenseDlg.value = true
+  expenseRecords.value = []
+  expenseTotal.value = 0
+  try {
+    const r = await request.get(`/api/expense/resource/${row.id}`)
+    if (r.code === 200) {
+      expenseRecords.value = r.data.records || []
+      expenseTotal.value = r.data.total || 0
+    }
+  } catch (e) {
+    ElMessage.error(e.msg || '获取资助明细失败')
+  }
+}
 const typeColor = t => ({'资金支持':'danger','设备支持':'warning','导师指导':'success','场地提供':'','技术合作':'primary','实习机会':'info'}[t]||'')
 const fmt = d => { if(!d)return'';const dt=new Date(d);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0')+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0') }
 </script>
@@ -86,6 +125,18 @@ const fmt = d => { if(!d)return'';const dt=new Date(d);return dt.getFullYear()+'
 .page-hero__subtitle { font-size: var(--font-size-base); opacity: 0.85; margin: 0; }
 
 .table-card { border-radius: var(--radius-xl); border: 1px solid var(--border-color); box-shadow: var(--shadow-card); overflow: hidden; }
+.expense-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef6ff, #f5f0ff);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.expense-total b { font-size: 24px; color: #10b981; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 768px) {
   .manage-content { padding: var(--spacing-md); }

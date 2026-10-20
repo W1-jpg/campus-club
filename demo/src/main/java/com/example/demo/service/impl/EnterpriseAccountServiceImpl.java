@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +51,9 @@ public class EnterpriseAccountServiceImpl implements EnterpriseAccountService {
 
     @Autowired
     private AlipayClient alipayClient;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Value("${alipay.notify-url}")
     private String notifyUrl;
@@ -328,6 +332,25 @@ public class EnterpriseAccountServiceImpl implements EnterpriseAccountService {
         result.put("checked", checked);
         result.put("paid", paid);
         result.put("pending", checked - paid);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> payForResource(Long enterpriseId, Long resourceId, BigDecimal amount, String remark) {
+        // 扣款并写消费流水（deductBalance 会加入当前事务）
+        deductBalance(enterpriseId, amount, remark);
+
+        // 记录资源收到的资助，供资源发布方查看
+        jdbcTemplate.update(
+                "INSERT INTO resource_expense (resource_id, enterprise_id, amount, remark, create_time) VALUES (?, ?, ?, ?, NOW())",
+                resourceId, enterpriseId, amount, remark);
+
+        EnterpriseAccount account = accountRepository.findByEnterpriseId(enterpriseId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("balance", account == null ? BigDecimal.ZERO : account.getBalance());
+        result.put("amount", amount);
+        result.put("resourceId", resourceId);
         return result;
     }
 
