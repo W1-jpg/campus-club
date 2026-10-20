@@ -136,7 +136,7 @@ const k = computed(() => data.value?.kpis || {})
 
 const kpiCards = computed(() => {
   const v = k.value
-  if (userType.value === 'student') {
+  if (scope.value === 'personal') {
     return [
       { label: '我的成果', value: v.achievementCount, icon: '📄', variant: 'blue' },
       { label: '我的获奖', value: v.awardCount, icon: '🏆', variant: 'orange' },
@@ -146,7 +146,7 @@ const kpiCards = computed(() => {
       { label: '收到评论', value: v.commentCount, icon: '💬', variant: 'purple' }
     ]
   }
-  if (userType.value === 'teacher') {
+  if (userType.value === 'student' || userType.value === 'teacher') {
     return [
       { label: '成果总数', value: v.achievementCount, icon: '📄', variant: 'blue' },
       { label: '学生总数', value: v.studentCount, icon: '👨‍🎓', variant: 'green' },

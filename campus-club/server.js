@@ -3638,8 +3638,8 @@ app.get('/api/visualization/dashboard', async (req, res) => {
     // 角色与用户 ID 一律取自 JWT，避免前端伪造 userType 查看全量数据
     const userType = req.user.userType;
     const userId = Number(req.user.id) || 0;
-    // 学生只看自己的数据；教师/管理员看全量
-    const personal = userType === 'student' && userId > 0;
+    // 默认所有角色（含学生）展示全平台数据；学生如需个人视图可显式传 scope=personal
+    const personal = req.query.scope === 'personal' && userType === 'student' && userId > 0;
     const A = personal ? 'WHERE student_id = ?' : '';
     const A2 = personal ? 'WHERE a.student_id = ?' : '';
     const P = personal ? [userId] : [];
