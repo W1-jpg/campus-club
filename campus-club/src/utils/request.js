@@ -34,10 +34,20 @@ request.interceptors.response.use(
     },
     (error) => {
         console.error('接口请求错误：', error)
-        // 处理后端返回的错误信息
+        // 登录状态失效：清除本地身份并回到对应角色登录页
+        if (error.response && error.response.status === 401) {
+            const role = localStorage.getItem('userType') || 'student'
+            localStorage.removeItem('token')
+            localStorage.removeItem('username')
+            localStorage.removeItem('userType')
+            if (!window.location.pathname.startsWith('/login')) {
+                window.location.href = `/login/${role}`
+            }
+            return Promise.reject({ msg: '登录已过期，请重新登录', status: 401 })
+        }
         if (error.response && error.response.data) {
             const errorMsg = error.response.data.msg || error.response.data.message || '请求失败'
-            return Promise.reject({ msg: errorMsg })
+            return Promise.reject({ msg: errorMsg, status: error.response.status })
         }
         return Promise.reject({ msg: '网络错误，请检查网络连接' })
     }

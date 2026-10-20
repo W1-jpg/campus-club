@@ -151,23 +151,19 @@ const submitForm = async () => {
   if (!form.title || !form.type || !form.description || form.clubFiles.length === 0 || form.achievementFiles.length === 0) {
     ElMessage.warning('请完整填写所有必填字段并上传文件'); return
   }
-  const studentId = localStorage.getItem('studentId')
-  if (!studentId) { ElMessage.error('请先登录'); router.push('/login/student'); return }
-  const college = localStorage.getItem('college')
-  if (!college) { ElMessage.error('无法获取学院信息，请重新登录'); router.push('/login/student'); return }
+  if (!localStorage.getItem('token')) { ElMessage.error('请先登录'); router.push('/login/student'); return }
   submitting.value = true
   try {
     const formData = new FormData()
     formData.append('title', form.title); formData.append('type', form.type)
-    formData.append('description', form.description); formData.append('studentId', studentId)
-    formData.append('college', college); formData.append('community', form.community || '')
+    formData.append('description', form.description); formData.append('community', form.community || '')
     form.clubFiles.forEach(file => formData.append('clubFiles', file))
     form.achievementFiles.forEach(file => formData.append('achievementFiles', file))
-    const response = await fetch('http://localhost:3000/api/result/upload', { method: 'POST', body: formData })
-    const data = await response.json()
+    // 通过统一的 axios 实例走 Vite 代理，自动携带 JWT；学生身份由服务端从令牌解析
+    const data = await request.post('/api/result/upload', formData)
     if (data.code === 200) { ElMessage.success('上传成功！'); router.push('/成果市场') }
     else ElMessage.error(data.msg || '上传失败')
-  } catch (err) { ElMessage.error('上传失败，请检查网络连接') }
+  } catch (err) { ElMessage.error(err.msg || '上传失败，请检查网络连接') }
   finally { submitting.value = false }
 }
 

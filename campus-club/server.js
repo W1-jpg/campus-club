@@ -5,15 +5,28 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
-// JWT配置
-const secretKey = process.env.JWT_SECRET || 'campus-club-secret-key-2026';
+// 载入本地 .env（Node 20.12+；文件不存在时忽略，使用系统环境变量）
+try {
+  process.loadEnvFile();
+} catch {
+  // 没有 .env 时继续使用系统环境变量
+}
+
+// JWT 配置：密钥只从环境变量读取；未配置时随机生成（重启后旧令牌失效）
+const secretKey = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const tokenExpiresIn = process.env.JWT_EXPIRES || '12h';
+if (!process.env.JWT_SECRET) {
+  console.warn('[security] 未设置 JWT_SECRET，已生成临时密钥；服务重启后登录状态会失效');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // 配置文件上传
 const uploadDir = path.join(__dirname, 'uploads');
@@ -65,6 +78,161 @@ app.use((req, res, next) => {
 });
 app.use('/uploads', express.static(uploadDir));
 
+// ==================== 认证、授权与邮箱验证码 ====================
+const USER_TYPES = ['student', 'teacher', 'admin', 'expert', 'enterprise'];
+const CODE_TTL_MS = 5 * 60 * 1000;
+const CODE_COOLDOWN_MS = 60 * 1000;
+const CODE_MAX_TRIES = 5;
+const loginCodes = new Map();   // key -> { code, expiresAt, tries }
+const codeSendLog = new Map();  // key -> 上次发送时间
+const ipSendLog = new Map();    // ip -> { count, resetAt }
+
+const smtpConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+const mailer = smtpConfigured
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.qq.com',
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: String(process.env.SMTP_SECURE || 'true') !== 'false',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    })
+  : null;
+
+const maskEmail = (value) => {
+  if (!value) return '';
+  const [name, domain] = String(value).split('@');
+  if (!domain) return '***';
+  return name.slice(0, 2) + '***@' + domain;
+};
+
+async function sendLoginCode(code, userType, username) {
+  const to = process.env.MAIL_TO || process.env.SMTP_USER;
+  const roleText = { student: '学生', teacher: '教师', admin: '管理员', expert: '评审专家', enterprise: '企业' }[userType] || userType;
+  const subject = '【校园社团平台】登录验证码';
+  const text = `您正在以${roleText}身份（账号：${username}）登录校园社团成果展示与孵化系统。\n\n验证码：${code}\n\n验证码 5 分钟内有效。如非本人操作，请忽略本邮件并尽快修改密码。`;
+  const html = `<div style="font-family:Arial,'Microsoft YaHei',sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #eee;border-radius:12px">
+    <h2 style="margin:0 0 8px;color:#2B5AED">校园社团成果展示与孵化系统</h2>
+    <p style="color:#555">您正在以 <b>${roleText}</b> 身份（账号：<b>${username}</b>）登录。</p>
+    <p style="color:#555;margin:16px 0 8px">本次登录验证码：</p>
+    <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111;background:#f5f7ff;border-radius:8px;padding:14px 20px;text-align:center">${code}</div>
+    <p style="color:#999;font-size:13px;margin-top:18px">验证码 5 分钟内有效。如非本人操作，请忽略本邮件并尽快修改密码。</p>
+  </div>`;
+  if (!mailer) {
+    console.log(`[mail:dev] to=${to} ${roleText}:${username} code=${code}`);
+    return { delivered: false, to };
+  }
+  if (process.env.CODE_DEBUG === '1') {
+    console.log(`[mail:debug] to=${maskEmail(to)} ${roleText}:${username} code=${code}`);
+  }
+  await mailer.sendMail({ from: `"校园社团平台" <${process.env.SMTP_USER}>`, to, subject, text, html });
+  return { delivered: true, to };
+}
+
+function issueToken(user, userType) {
+  return jwt.sign(
+    {
+      id: user.id,
+      username: user.username,
+      userType,
+      college: user.college || '',
+      realName: user.real_name || user.realName || ''
+    },
+    secretKey,
+    { expiresIn: tokenExpiresIn }
+  );
+}
+
+function checkLoginCode(userType, username, code) {
+  const key = `${userType}:${username}`;
+  const record = loginCodes.get(key);
+  if (!record) return { ok: false, msg: '请先获取邮箱验证码' };
+  if (Date.now() > record.expiresAt) {
+    loginCodes.delete(key);
+    return { ok: false, msg: '验证码已过期，请重新获取' };
+  }
+  record.tries += 1;
+  if (record.tries > CODE_MAX_TRIES) {
+    loginCodes.delete(key);
+    return { ok: false, msg: '验证码错误次数过多，请重新获取' };
+  }
+  if (String(code || '') !== record.code) {
+    return { ok: false, msg: '验证码不正确' };
+  }
+  loginCodes.delete(key);
+  return { ok: true };
+}
+
+// 所有 /api 请求（公开接口除外）必须携带有效 JWT
+const PUBLIC_API_PATHS = [
+  /^\/api\/auth\/login\//,
+  /^\/api\/auth\/register\//,
+  /^\/api\/auth\/send-code$/,
+  /^\/api\/auth\/verify-identity$/,
+  /^\/api\/auth\/reset-password$/,
+  /^\/api\/auth\/wx-login$/
+];
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  if (req.method === 'OPTIONS') return next();
+  if (PUBLIC_API_PATHS.some((re) => re.test(req.path))) return next();
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) return res.status(401).json({ code: 401, msg: '未登录或登录已过期' });
+  try {
+    req.user = jwt.verify(token, secretKey);
+    return next();
+  } catch (err) {
+    return res.status(401).json({ code: 401, msg: '登录已过期，请重新登录' });
+  }
+});
+
+const requireRole = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.userType)) {
+    return res.status(403).json({ code: 403, msg: '没有操作权限' });
+  }
+  next();
+};
+
+const isStaff = (user) => Boolean(user && ['teacher', 'admin'].includes(user.userType));
+
+// 发送登录验证码
+app.post('/api/auth/send-code', async (req, res) => {
+  const { username, userType } = req.body || {};
+  const name = String(username || '').trim();
+  if (!USER_TYPES.includes(userType)) return res.json({ code: 400, msg: '角色类型不正确' });
+  if (!name || name.length > 50) return res.json({ code: 400, msg: '请输入正确的用户名' });
+
+  const now = Date.now();
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const ipRec = ipSendLog.get(ip);
+  if (!ipRec || now > ipRec.resetAt) {
+    ipSendLog.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 });
+  } else if (ipRec.count >= 10) {
+    return res.json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+  } else {
+    ipRec.count += 1;
+  }
+
+  const key = `${userType}:${name}`;
+  if (now - (codeSendLog.get(key) || 0) < CODE_COOLDOWN_MS) {
+    return res.json({ code: 429, msg: '验证码已发送，请 60 秒后再试' });
+  }
+
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  loginCodes.set(key, { code, expiresAt: now + CODE_TTL_MS, tries: 0 });
+  codeSendLog.set(key, now);
+
+  try {
+    const result = await sendLoginCode(code, userType, name);
+    return res.json({
+      code: 200,
+      msg: result.delivered ? `验证码已发送至 ${maskEmail(result.to)}` : '验证码已生成（未配置 SMTP，请查看服务端日志）'
+    });
+  } catch (err) {
+    console.error('[mail] 验证码发送失败:', err.message);
+    return res.json({ code: 500, msg: '验证码发送失败，请稍后重试' });
+  }
+});
+
 // 路由
 app.get('/', (req, res) => {
   res.send('Campus Club API Server');
@@ -96,11 +264,13 @@ app.post('/api/auth/login/student', (req, res) => {
     }
     
     const student = result[0];
+    const codeCheck = checkLoginCode('student', username, req.body.code);
+    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({
       code: 200,
       msg: '登录成功',
       data: {
-        token: `student-token-${student.id}`,
+        token: issueToken(student, 'student'),
         user: {
           id: student.id,
           username: student.username,
@@ -137,11 +307,13 @@ app.post('/api/auth/login/teacher', (req, res) => {
     }
     
     const teacher = result[0];
+    const codeCheck = checkLoginCode('teacher', username, req.body.code);
+    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({
       code: 200,
       msg: '登录成功',
       data: {
-        token: `teacher-token-${teacher.id}`,
+        token: issueToken(teacher, 'teacher'),
         user: {
           id: teacher.id,
           username: teacher.username,
@@ -192,9 +364,12 @@ app.post('/api/auth/login/admin', (req, res) => {
       });
       return;
     }
-    
+
+    const codeCheck = checkLoginCode('admin', username, req.body.code);
+    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
+
     // 生成token
-    const token = jwt.sign({ id: admin.id, username: admin.username, userType: 'admin' }, secretKey, { expiresIn: '24h' });
+    const token = issueToken(admin, 'admin');
     
     res.json({
       code: 200,
@@ -234,11 +409,15 @@ app.post('/api/auth/verify-identity', (req, res) => {
 
 // 忘记密码第二步：重置密码
 app.post('/api/auth/reset-password', (req, res) => {
-  const { username, userType, realName, newPassword } = req.body;
+  const { username, userType, realName, newPassword, code } = req.body;
   const table = AUTH_USER_TABLES[userType];
   if (!table) { res.json({ code: 400, msg: '角色类型不正确' }); return; }
   if (!username || !realName || !newPassword) { res.json({ code: 400, msg: '缺少必要参数' }); return; }
-  if (String(newPassword).length < 3) { res.json({ code: 400, msg: '密码至少 3 位' }); return; }
+  if (String(newPassword).length < 6) { res.json({ code: 400, msg: '密码至少 6 位' }); return; }
+
+  // 重置密码同样必须通过邮箱验证码，避免仅凭“用户名+姓名”接管账号
+  const codeCheck = checkLoginCode(userType, String(username).trim(), code);
+  if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
   db.query(`SELECT id FROM ${table} WHERE username = ? AND real_name = ? LIMIT 1`, [username, realName], (err, rows) => {
     if (err) { console.error('重置密码失败:', err); res.json({ code: 500, msg: '重置密码失败' }); return; }
     if (!rows.length) { res.json({ code: 400, msg: '身份信息不匹配' }); return; }
@@ -266,10 +445,22 @@ const deleteAccount = (userType, username, res) => {
 };
 
 app.post('/api/auth/delete/:userType', (req, res) => {
-  deleteAccount(req.params.userType, req.body.username, res);
+  const userType = req.params.userType;
+  const isAdmin = req.user.userType === 'admin';
+  if (!isAdmin && (req.user.userType !== userType || req.body.username !== req.user.username)) {
+    res.status(403).json({ code: 403, msg: '只能注销自己的账号' });
+    return;
+  }
+  deleteAccount(userType, isAdmin ? req.body.username : req.user.username, res);
 });
 app.post('/api/auth/delete', (req, res) => {
-  deleteAccount(req.body.userType, req.body.username, res);
+  const userType = req.body.userType || req.user.userType;
+  const isAdmin = req.user.userType === 'admin';
+  if (!isAdmin && (req.user.userType !== userType || req.body.username !== req.user.username)) {
+    res.status(403).json({ code: 403, msg: '只能注销自己的账号' });
+    return;
+  }
+  deleteAccount(userType, isAdmin ? req.body.username : req.user.username, res);
 });
 
 // 注册相关接口
@@ -324,7 +515,7 @@ app.post('/api/auth/register/student', (req, res) => {
         code: 200,
         msg: '注册成功',
         data: {
-          token: `student-token-${studentId}`,
+          token: issueToken({ id: studentId, username, college }, 'student'),
           user: {
             id: studentId,
             username: username,
@@ -409,7 +600,7 @@ app.post('/api/auth/register/teacher', (req, res) => {
             code: 200,
             msg: '注册成功',
             data: {
-              token: `teacher-token-${teacherId}`,
+              token: issueToken({ id: teacherId, username, college }, 'teacher'),
               user: {
                 id: teacherId,
                 username: username,
@@ -439,7 +630,7 @@ app.post('/api/auth/register/teacher', (req, res) => {
           code: 200,
           msg: '注册成功',
           data: {
-            token: `teacher-token-${teacherId}`,
+            token: issueToken({ id: teacherId, username, college }, 'teacher'),
             user: {
               id: teacherId,
               username: username,
@@ -454,7 +645,11 @@ app.post('/api/auth/register/teacher', (req, res) => {
 });
 
 app.post('/api/auth/register/admin', (req, res) => {
-  console.log('接收到管理员注册请求:', req.body);
+  // 管理员账号不允许公开自助注册，避免任意用户提权
+  res.status(403).json({ code: 403, msg: '管理员账号只能由系统管理员创建' });
+  return;
+
+  /* eslint-disable no-unreachable */
   const { username, password, realName } = req.body;
   
   // 检查必要参数
@@ -504,7 +699,7 @@ app.post('/api/auth/register/admin', (req, res) => {
         code: 200,
         msg: '注册成功',
         data: {
-          token: `admin-token-${userId}`,
+          token: issueToken({ id: userId, username }, 'admin'),
           user: {
             id: userId,
             username: username,
@@ -554,7 +749,9 @@ app.post('/api/auth/login/expert', (req, res) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length === 0) { res.json({ code: 400, msg: '用户名或密码错误' }); return; }
     const user = result[0];
-    res.json({ code: 200, data: { token: `expert-token-${user.id}`, user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, field: user.field, title: user.title, organization: user.organization, userType: 'expert' } } });
+    const codeCheck = checkLoginCode('expert', username, req.body.code);
+    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
+    res.json({ code: 200, data: { token: issueToken(user, 'expert'), user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, field: user.field, title: user.title, organization: user.organization, userType: 'expert' } } });
   });
 });
 
@@ -566,7 +763,9 @@ app.post('/api/auth/login/enterprise', (req, res) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length === 0) { res.json({ code: 400, msg: '用户名或密码错误' }); return; }
     const user = result[0];
-    res.json({ code: 200, data: { token: `enterprise-token-${user.id}`, user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, companyName: user.company_name, industry: user.industry, address: user.address, userType: 'enterprise' } } });
+    const codeCheck = checkLoginCode('enterprise', username, req.body.code);
+    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
+    res.json({ code: 200, data: { token: issueToken(user, 'enterprise'), user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, companyName: user.company_name, industry: user.industry, address: user.address, userType: 'enterprise' } } });
   });
 });
 
@@ -582,7 +781,7 @@ app.post('/api/auth/register/expert', (req, res) => {
       [username, password, realName, email || '', field || '', title || '', organization || ''], (err, insertResult) => {
         if (err) { res.json({ code: 500, msg: '注册失败' }); return; }
         const userId = insertResult.insertId;
-        res.json({ code: 200, msg: '注册成功', data: { token: `expert-token-${userId}`, user: { id: userId, username, userType: 'expert' } } });
+        res.json({ code: 200, msg: '注册成功', data: { token: issueToken({ id: userId, username }, 'expert'), user: { id: userId, username, userType: 'expert' } } });
       });
   });
 });
@@ -599,7 +798,7 @@ app.post('/api/auth/register/enterprise', (req, res) => {
       [username, password, realName, email || '', companyName, industry || '', address || ''], (err, insertResult) => {
         if (err) { res.json({ code: 500, msg: '注册失败' }); return; }
         const userId = insertResult.insertId;
-        res.json({ code: 200, msg: '注册成功', data: { token: `enterprise-token-${userId}`, user: { id: userId, username, userType: 'enterprise' } } });
+        res.json({ code: 200, msg: '注册成功', data: { token: issueToken({ id: userId, username }, 'enterprise'), user: { id: userId, username, userType: 'enterprise' } } });
       });
   });
 });
@@ -607,23 +806,27 @@ app.post('/api/auth/register/enterprise', (req, res) => {
 // 上传成果
 app.post('/api/result/upload', upload.fields([{ name: 'clubFiles', maxCount: 10 }, { name: 'achievementFiles', maxCount: 10 }]), (req, res) => {
   console.log('接收到上传请求');
-  console.log('请求体:', req.body);
-  console.log('上传的社团文件:', req.files.clubFiles);
-  console.log('上传的成果文件:', req.files.achievementFiles);
-  
-  const { title, type, description, studentId, college } = req.body;
-  const clubFiles = req.files.clubFiles || [];
-  const achievementFiles = req.files.achievementFiles || [];
+  if (req.user.userType !== 'student') {
+    res.status(403).json({ code: 403, msg: '只有学生可以上传成果' });
+    return;
+  }
 
-  if (!title || !type || !studentId) {
+  const { title, type, description } = req.body;
+  const studentId = req.user.id;
+  const college = req.user.college || '';
+  const files = req.files || {};
+  const clubFiles = files.clubFiles || [];
+  const achievementFiles = files.achievementFiles || [];
+
+  if (!title || !type) {
     console.error('缺少必要参数');
     res.status(400).json({ code: 400, msg: '缺少必要参数' });
     return;
   }
 
-  // 插入成果
-  const achievementSql = 'INSERT INTO achievement (title, description, type, student_id) VALUES (?, ?, ?, ?)';
-  db.query(achievementSql, [title, description, type, studentId], (err, result) => {
+  // 插入成果（学生身份取自 JWT，忽略前端传入的 studentId）
+  const achievementSql = 'INSERT INTO achievement (title, description, type, student_id, college) VALUES (?, ?, ?, ?, ?)';
+  db.query(achievementSql, [title, description, type, studentId, college], (err, result) => {
     if (err) {
       console.error('Error inserting achievement:', err);
       res.status(500).json({ code: 500, msg: '上传失败' });
@@ -671,10 +874,10 @@ app.post('/api/result/upload', upload.fields([{ name: 'clubFiles', maxCount: 10 
 
 // 获取成果详情（含浏览量、点赞数、评论数、点赞状态、学生姓名）
 app.get('/api/result/detail/:id', (req, res) => {
-  console.log('接收到获取成果详情请求，ID:', req.params.id, 'userId:', req.query.userId, 'userType:', req.query.userType);
+  console.log('接收到获取成果详情请求，ID:', req.params.id);
   const { id } = req.params;
-  const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
-  const userType = req.query.userType || '';
+  const userId = req.user.id;
+  const userType = req.user.userType;
 
   // 获取成果信息
   const achievementSql = 'SELECT * FROM achievement WHERE id = ?';
@@ -691,7 +894,10 @@ app.get('/api/result/detail/:id', (req, res) => {
     }
 
     const achievement = achievementResult[0];
-    console.log('获取到成果信息:', achievement);
+    if (req.user.userType === 'student' && achievement.student_id !== req.user.id && achievement.review_status !== 2) {
+      res.status(403).json({ code: 403, msg: '无权查看该成果' });
+      return;
+    }
 
     // 获取文件信息
     const fileSql = 'SELECT * FROM file WHERE achievement_id = ?';
@@ -763,9 +969,14 @@ app.get('/api/result/detail/:id', (req, res) => {
   });
 });
 
-// 获取我的成果
+// 获取我的成果（学生只能看自己的；教师/管理员可按学生查询）
 app.get('/api/result/my', (req, res) => {
-  const { studentId } = req.query;
+  let studentId = req.user.id;
+  if (isStaff(req.user) && req.query.studentId) studentId = Number(req.query.studentId);
+  if (!studentId) {
+    res.status(400).json({ code: 400, msg: '缺少学生标识' });
+    return;
+  }
 
   const sql = 'SELECT * FROM achievement WHERE student_id = ?';
   db.query(sql, [studentId], (err, result) => {
@@ -821,7 +1032,10 @@ app.get('/api/incubation/detail/:id', (req, res) => {
     }
 
     const achievement = achievementResult[0];
-    console.log('获取到孵化项目信息:', achievement);
+    if (req.user.userType === 'student' && achievement.student_id !== req.user.id) {
+      res.status(403).json({ code: 403, msg: '无权查看该项目' });
+      return;
+    }
 
     // 获取文件信息
     const fileSql = 'SELECT * FROM file WHERE achievement_id = ? AND file_category = ?';
@@ -858,11 +1072,20 @@ app.get('/api/incubation/detail/:id', (req, res) => {
 // 获取成果列表（用于教师端评分和孵化）
 app.get('/api/result/list', (req, res) => {
   console.log('接收到获取成果列表请求:', req.query);
-  const { userId, userType, college } = req.query;
 
-  // 获取所有成果
-  const achievementSql = 'SELECT * FROM achievement';
-  db.query(achievementSql, (err, achievementResult) => {
+  // 按角色限制可见范围：学生只能看已通过或自己的；教师只看本学院；管理员/专家看全部
+  let where = '';
+  const params = [];
+  if (req.user.userType === 'student') {
+    where = ' WHERE (review_status = 2 OR student_id = ?)';
+    params.push(req.user.id);
+  } else if (req.user.userType === 'teacher' && req.user.college) {
+    where = ' WHERE (college = ? OR college IS NULL OR college = \'\')';
+    params.push(req.user.college);
+  }
+
+  const achievementSql = 'SELECT * FROM achievement' + where;
+  db.query(achievementSql, params, (err, achievementResult) => {
     if (err) {
       console.error('Error getting achievements:', err);
       res.status(500).json({ code: 500, msg: '获取成果列表失败' });
@@ -1029,8 +1252,10 @@ app.post('/api/result/view/:id', (req, res) => {
 
 // 点赞
 app.post('/api/result/like', (req, res) => {
-  const { achievementId, userId, userType } = req.query;
-  if (!achievementId || !userId || !userType) { res.status(400).json({ code: 400, msg: '缺少参数' }); return; }
+  const { achievementId } = req.query;
+  const userId = req.user.id;
+  const userType = req.user.userType;
+  if (!achievementId) { res.status(400).json({ code: 400, msg: '缺少参数' }); return; }
   db.query('SELECT id FROM likes WHERE achievement_id = ? AND user_id = ? AND user_type = ?', [achievementId, userId, userType], (err, result) => {
     if (err) { console.error('点赞查询失败:', err); res.status(500).json({ code: 500, msg: '操作失败' }); return; }
     if (result.length > 0) { res.json({ code: 200, msg: '已点赞' }); return; }
@@ -1043,8 +1268,10 @@ app.post('/api/result/like', (req, res) => {
 
 // 取消点赞
 app.post('/api/result/unlike', (req, res) => {
-  const { achievementId, userId, userType } = req.query;
-  if (!achievementId || !userId || !userType) { res.status(400).json({ code: 400, msg: '缺少参数' }); return; }
+  const { achievementId } = req.query;
+  const userId = req.user.id;
+  const userType = req.user.userType;
+  if (!achievementId) { res.status(400).json({ code: 400, msg: '缺少参数' }); return; }
   db.query('DELETE FROM likes WHERE achievement_id = ? AND user_id = ? AND user_type = ?', [achievementId, userId, userType], (err) => {
     if (err) { console.error('取消点赞失败:', err); res.status(500).json({ code: 500, msg: '操作失败' }); return; }
     res.json({ code: 200, msg: '已取消点赞' });
@@ -1053,16 +1280,18 @@ app.post('/api/result/unlike', (req, res) => {
 
 // 发表评论
 app.post('/api/result/comment', (req, res) => {
-  const { achievementId, userId, userType, content } = req.body || {};
+  const { achievementId, content } = req.body || {};
+  const userId = req.user.id;
+  const userType = req.user.userType;
   if (!achievementId || !content) { res.status(400).json({ code: 400, msg: '缺少参数' }); return; }
-  db.query('INSERT INTO comment (achievement_id, user_id, user_type, content) VALUES (?, ?, ?, ?)', [achievementId, userId || null, userType || '', content], (err) => {
+  db.query('INSERT INTO comment (achievement_id, user_id, user_type, content) VALUES (?, ?, ?, ?)', [achievementId, userId, userType, content], (err) => {
     if (err) { console.error('发表评论失败:', err); res.status(500).json({ code: 500, msg: '评论失败' }); return; }
     res.json({ code: 200, msg: '评论成功' });
   });
 });
 
 // 第一阶段评分（成果评分）
-app.post('/api/result/score', (req, res) => {
+app.post('/api/result/score', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到第一阶段评分请求:', req.query);
   const { achievementId, score } = req.query;
 
@@ -1085,7 +1314,7 @@ app.post('/api/result/score', (req, res) => {
 });
 
 // 第二阶段评分（成果孵化）
-app.post('/api/result/incubation-score', (req, res) => {
+app.post('/api/result/incubation-score', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到第二阶段评分请求:', req.query);
   const { achievementId, score } = req.query;
 
@@ -1137,7 +1366,7 @@ app.post('/api/result/incubation-score', (req, res) => {
 });
 
 // 完成孵化
-app.post('/api/result/complete-incubation', (req, res) => {
+app.post('/api/result/complete-incubation', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到完成孵化请求:', req.query);
   const { achievementId } = req.query;
 
@@ -1160,7 +1389,7 @@ app.post('/api/result/complete-incubation', (req, res) => {
 });
 
 // 打回成果（孵化阶段）
-app.post('/api/result/incubation-reject', (req, res) => {
+app.post('/api/result/incubation-reject', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到孵化打回请求:', req.query);
   const { achievementId, reason } = req.query;
 
@@ -1183,7 +1412,7 @@ app.post('/api/result/incubation-reject', (req, res) => {
 });
 
 // 更新评审进度
-app.post('/api/result/review-progress', (req, res) => {
+app.post('/api/result/review-progress', requireRole('expert', 'admin'), (req, res) => {
   console.log('接收到更新评审进度请求:', req.body);
   const { achievementId, progress } = req.body;
 
@@ -1206,7 +1435,7 @@ app.post('/api/result/review-progress', (req, res) => {
 });
 
 // 专家评审通过
-app.post('/api/result/review-pass', (req, res) => {
+app.post('/api/result/review-pass', requireRole('expert', 'admin'), (req, res) => {
   console.log('接收到专家评审通过请求:', req.body);
   const { achievementId, score, comment } = req.body;
 
@@ -1229,6 +1458,17 @@ app.post('/api/result/review-pass', (req, res) => {
 });
 
 // ==================== 专家端评审接口 ====================
+
+// 专家端接口统一要求专家令牌，且专家只能访问自己的数据
+app.use('/api/expert', requireRole('expert', 'admin'), (req, res, next) => {
+  if (req.user.userType !== 'expert') return next();
+  const fromPath = (req.path.match(/\/(\d+)(?:\/|$)/) || [])[1];
+  const id = Number(req.params.expertId || req.query.expertId || fromPath || 0);
+  if (id && id !== req.user.id) {
+    return res.status(403).json({ code: 403, msg: '只能访问本人的评审数据' });
+  }
+  next();
+});
 
 // 获取待专家评审的成果列表（教师已评分通过的）
 app.get('/api/expert/tasks', (req, res) => {
@@ -1333,7 +1573,7 @@ db.query(`ALTER TABLE achievement ADD COLUMN review_progress INT DEFAULT 0`, (er
 
 // 专家评审打回
 // 教师端打回成果（前端以 query 传参，同时兼容 body）
-app.post('/api/result/reject', (req, res) => {
+app.post('/api/result/reject', requireRole('teacher', 'admin'), (req, res) => {
   const achievementId = req.body.achievementId || req.query.achievementId;
   const reason = req.body.reason || req.query.reason;
   if (!achievementId || !reason) {
@@ -1351,7 +1591,7 @@ app.post('/api/result/reject', (req, res) => {
   });
 });
 
-app.post('/api/result/review-reject', (req, res) => {
+app.post('/api/result/review-reject', requireRole('expert', 'admin'), (req, res) => {
   console.log('接收到专家评审打回请求:', req.body);
   const { achievementId, reason } = req.body;
 
@@ -1471,9 +1711,8 @@ app.get('/api/result/my', (req, res) => {
   });
 });
 
-// 更新成果
+// 更新成果（仅本人或管理员）
 app.put('/api/result/update', (req, res) => {
-  console.log('接收到更新成果请求:', req.body);
   const { id, title, type, description } = req.body;
 
   if (!id || !title || !type) {
@@ -1481,22 +1720,28 @@ app.put('/api/result/update', (req, res) => {
     return;
   }
 
-  // 更新成果信息
-  const sql = 'UPDATE achievement SET title = ?, type = ?, description = ? WHERE id = ?';
-  db.query(sql, [title, type, description, id], (err, result) => {
-    if (err) {
-      console.error('Error updating achievement:', err);
-      res.status(500).json({ code: 500, msg: '更新失败' });
+  db.query('SELECT student_id FROM achievement WHERE id = ?', [id], (err, rows) => {
+    if (err) { res.status(500).json({ code: 500, msg: '更新失败' }); return; }
+    if (!rows.length) { res.status(404).json({ code: 404, msg: '成果不存在' }); return; }
+    if (req.user.userType !== 'admin' && rows[0].student_id !== req.user.id) {
+      res.status(403).json({ code: 403, msg: '只能修改自己的成果' });
       return;
     }
 
-    res.json({ code: 200, msg: '更新成功' });
+    const sql = 'UPDATE achievement SET title = ?, type = ?, description = ?, update_time = NOW() WHERE id = ?';
+    db.query(sql, [title, type, description, id], (err2) => {
+      if (err2) {
+        console.error('Error updating achievement:', err2);
+        res.status(500).json({ code: 500, msg: '更新失败' });
+        return;
+      }
+      res.json({ code: 200, msg: '更新成功' });
+    });
   });
 });
 
-// 删除成果
+// 删除成果（仅本人或管理员，并清理关联数据）
 app.delete('/api/result/delete/:id', (req, res) => {
-  console.log('接收到删除成果请求:', req.params);
   const { id } = req.params;
 
   if (!id) {
@@ -1504,31 +1749,43 @@ app.delete('/api/result/delete/:id', (req, res) => {
     return;
   }
 
-  // 删除成果
-  const sql = 'DELETE FROM achievement WHERE id = ?';
-  db.query(sql, [id], (err, result) => {
-    if (err) {
-      console.error('Error deleting achievement:', err);
-      res.status(500).json({ code: 500, msg: '删除失败' });
+  db.query('SELECT student_id FROM achievement WHERE id = ?', [id], (err, rows) => {
+    if (err) { res.status(500).json({ code: 500, msg: '删除失败' }); return; }
+    if (!rows.length) { res.status(404).json({ code: 404, msg: '成果不存在' }); return; }
+    if (req.user.userType !== 'admin' && rows[0].student_id !== req.user.id) {
+      res.status(403).json({ code: 403, msg: '只能删除自己的成果' });
       return;
     }
 
-    res.json({ code: 200, msg: '删除成功' });
+    db.query('DELETE FROM comment WHERE achievement_id = ?', [id], () => {
+      db.query('DELETE FROM likes WHERE achievement_id = ?', [id], () => {
+        db.query('DELETE FROM file WHERE achievement_id = ?', [id], () => {
+          db.query('DELETE FROM achievement WHERE id = ?', [id], (err2) => {
+            if (err2) {
+              console.error('Error deleting achievement:', err2);
+              res.status(500).json({ code: 500, msg: '删除失败' });
+              return;
+            }
+            res.json({ code: 200, msg: '删除成功' });
+          });
+        });
+      });
+    });
   });
 });
 
-// 获取学生信息
+// 获取学生信息（学生只能查自己，教师/管理员可查；不返回密码等敏感字段）
 app.get('/api/student/info', (req, res) => {
-  console.log('接收到获取学生信息请求:', req.query);
-  const { studentId } = req.query;
-
-  if (!studentId) {
-    res.status(400).json({ code: 400, msg: '缺少必要参数' });
-    return;
+  let studentId = req.user.id;
+  if (['teacher', 'admin', 'expert'].includes(req.user.userType)) {
+    if (!req.query.studentId) {
+      res.status(400).json({ code: 400, msg: '缺少必要参数' });
+      return;
+    }
+    studentId = Number(req.query.studentId);
   }
 
-  // 从student_user表中查询学生信息
-  const sql = 'SELECT * FROM student_user WHERE id = ?';
+  const sql = 'SELECT id, username, real_name, college, phone, email FROM student_user WHERE id = ?';
   db.query(sql, [studentId], (err, result) => {
     if (err) {
       console.error('Error querying student:', err);
@@ -1541,9 +1798,18 @@ app.get('/api/student/info', (req, res) => {
       return;
     }
 
+    const row = result[0];
     res.json({
       code: 200,
-      data: result[0]
+      data: {
+        id: row.id,
+        username: row.username,
+        realName: row.real_name,
+        real_name: row.real_name,
+        college: row.college,
+        phone: row.phone,
+        email: row.email
+      }
     });
   });
 });
@@ -1572,7 +1838,7 @@ app.get('/api/notice/list', (req, res) => {
   });
 });
 
-app.post('/api/notice/create', (req, res) => {
+app.post('/api/notice/create', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到创建通知请求:', req.body);
   const { title, content, publisherId, publisherType, status, noticeType } = req.body;
   // 向notification表中插入新通知
@@ -1587,7 +1853,7 @@ app.post('/api/notice/create', (req, res) => {
   });
 });
 
-app.put('/api/notice/update', (req, res) => {
+app.put('/api/notice/update', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到更新通知请求:', req.body);
   const { id, title, content } = req.body;
   // 更新notification表中的通知
@@ -1602,7 +1868,7 @@ app.put('/api/notice/update', (req, res) => {
   });
 });
 
-app.delete('/api/notice/delete/:id', (req, res) => {
+app.delete('/api/notice/delete/:id', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到删除通知请求:', req.params);
   const { id } = req.params;
   // 从notification表中删除通知
@@ -1619,8 +1885,11 @@ app.delete('/api/notice/delete/:id', (req, res) => {
 
 // 获取学生的个人通知
 app.get('/api/notice/student/:id', (req, res) => {
-  console.log('接收到获取学生个人通知请求:', req.params);
   const { id } = req.params;
+  if (req.user.userType === 'student' && Number(id) !== req.user.id) {
+    res.status(403).json({ code: 403, msg: '只能查看自己的通知' });
+    return;
+  }
   // 从notification表中获取学生的个人通知
   // 这里简化处理，返回所有通知
   const sql = 'SELECT * FROM notification WHERE type = ? OR type = ? ORDER BY create_time DESC';
@@ -1689,6 +1958,17 @@ db.query(`ALTER TABLE resource_application ADD COLUMN application_time DATETIME 
 db.query(`ALTER TABLE resource_application ADD COLUMN status VARCHAR(20) DEFAULT "待审核"`, (err) => {});
 
 // 企业工作台统计
+// 企业端接口统一要求企业令牌，且只能访问本企业数据
+app.use('/api/enterprise', requireRole('enterprise', 'admin'), (req, res, next) => {
+  if (req.user.userType !== 'enterprise') return next();
+  const fromPath = (req.path.match(/\/(\d+)(?:\/|$)/) || [])[1];
+  const id = Number(req.query.enterpriseId || (req.body && req.body.enterpriseId) || fromPath || 0);
+  if (id && id !== req.user.id) {
+    return res.status(403).json({ code: 403, msg: '只能访问本企业的数据' });
+  }
+  next();
+});
+
 app.get('/api/enterprise/stats/:enterpriseId', (req, res) => {
   const eid = req.params.enterpriseId;
   Promise.all([
@@ -1874,7 +2154,7 @@ app.get('/api/resource/:id', (req, res) => {
   });
 });
 
-app.post('/api/resource', (req, res) => {
+app.post('/api/resource', requireRole('teacher', 'admin', 'enterprise'), (req, res) => {
   console.log('接收到创建资源请求:', req.body);
   const { title, type, provider, description, publishTime, endTime, status } = req.body;
   const sql = 'INSERT INTO resource (title, type, provider, description, publish_time, end_time, status) VALUES (?, ?, ?, ?, ?, ?, ?)';
@@ -1888,7 +2168,7 @@ app.post('/api/resource', (req, res) => {
   });
 });
 
-app.delete('/api/resource/:id', (req, res) => {
+app.delete('/api/resource/:id', requireRole('teacher', 'admin', 'enterprise'), (req, res) => {
   console.log('接收到删除资源请求:', req.params);
   const { id } = req.params;
   const sql = 'DELETE FROM resource WHERE id = ?';
@@ -1907,8 +2187,11 @@ app.delete('/api/resource/:id', (req, res) => {
 });
 
 app.get('/api/resource/applications/student/:studentId', (req, res) => {
-  console.log('接收到获取学生申请列表请求:', req.params);
   const { studentId } = req.params;
+  if (req.user.userType === 'student' && Number(studentId) !== req.user.id) {
+    res.status(403).json({ code: 403, msg: '只能查看自己的申请' });
+    return;
+  }
   const sql = 'SELECT id, resource_id as resourceId, student_id as studentId, student_name as studentName, student_college as studentCollege, status, application_time as applicationTime FROM resource_application WHERE student_id = ?';
   db.query(sql, [studentId], (err, results) => {
     if (err) {
@@ -1920,8 +2203,7 @@ app.get('/api/resource/applications/student/:studentId', (req, res) => {
   });
 });
 
-app.get('/api/resource/applications/resource/:resourceId', (req, res) => {
-  console.log('接收到获取资源申请列表请求:', req.params);
+app.get('/api/resource/applications/resource/:resourceId', requireRole('teacher', 'admin', 'enterprise'), (req, res) => {
   const { resourceId } = req.params;
   const sql = 'SELECT id, resource_id as resourceId, student_id as studentId, student_name as studentName, student_college as studentCollege, status, application_time as applicationTime FROM resource_application WHERE resource_id = ?';
   db.query(sql, [resourceId], (err, results) => {
@@ -1934,11 +2216,13 @@ app.get('/api/resource/applications/resource/:resourceId', (req, res) => {
   });
 });
 
-app.post('/api/resource/apply', (req, res) => {
-  console.log('接收到申请资源请求:', req.body);
-  const { resourceId, studentId, studentName, studentCollege } = req.body;
+app.post('/api/resource/apply', requireRole('student'), (req, res) => {
+  const { resourceId } = req.body;
+  const studentId = req.user.id;
+  const studentName = req.user.realName || req.user.username;
+  const studentCollege = req.user.college || '';
 
-  if (!resourceId || !studentId) {
+  if (!resourceId) {
     res.status(400).json({ code: 400, msg: '缺少必要参数' });
     return;
   }
@@ -1971,7 +2255,7 @@ app.post('/api/resource/apply', (req, res) => {
   });
 });
 
-app.put('/api/resource/applications/:id/status', (req, res) => {
+app.put('/api/resource/applications/:id/status', requireRole('teacher', 'admin', 'enterprise'), (req, res) => {
   console.log('接收到更新申请状态请求:', req.params, req.query);
   const { id } = req.params;
   const { status } = req.query;
@@ -2138,11 +2422,16 @@ const createAdminTable = () => {
 // 上传获奖材料
 app.post('/api/award/upload', upload.fields([{ name: 'awardFiles', maxCount: 10 }]), (req, res) => {
   console.log('接收到获奖上传请求');
-  console.log('请求体:', req.body);
-  console.log('上传的获奖文件:', req.files.awardFiles);
-  
-  const { title, level, awardTime, description, studentId, college } = req.body;
-  const awardFiles = req.files.awardFiles || [];
+  if (req.user.userType !== 'student') {
+    res.status(403).json({ code: 403, msg: '只有学生可以上传获奖材料' });
+    return;
+  }
+
+  const { title, level, awardTime, description } = req.body;
+  const studentId = req.user.id;
+  const college = req.user.college || '';
+  const files = req.files || {};
+  const awardFiles = files.awardFiles || [];
   
   // 处理日期格式，确保是YYYY-MM-DD格式
   let formattedAwardTime = awardTime;
@@ -2192,7 +2481,7 @@ app.post('/api/award/upload', upload.fields([{ name: 'awardFiles', maxCount: 10 
 });
 
 // 获取获奖列表（用于教师端）
-app.get('/api/award/list', (req, res) => {
+app.get('/api/award/list', requireRole('teacher', 'admin'), (req, res) => {
   console.log('接收到获取获奖列表请求');
 
   // 获取所有获奖信息
@@ -2296,7 +2585,10 @@ app.get('/api/award/:id', (req, res) => {
     }
 
     const award = awardResult[0];
-    console.log('获取到获奖信息:', award);
+    if (req.user.userType === 'student' && award.student_id !== req.user.id) {
+      res.status(403).json({ code: 403, msg: '无权查看该获奖记录' });
+      return;
+    }
 
     // 获取文件信息
     const fileSql = 'SELECT * FROM award_file WHERE award_id = ?';
@@ -2343,49 +2635,8 @@ app.get('/api/award/:id', (req, res) => {
   });
 });
 
-// 管理员登录
-app.post('/api/admin/login', (req, res) => {
-  const { username, password } = req.body;
-  
-  if (!username || !password) {
-    res.status(400).json({ code: 400, msg: '缺少必要参数' });
-    return;
-  }
-  
-  const sql = 'SELECT * FROM admin_user WHERE username = ?';
-  db.query(sql, [username], (err, result) => {
-    if (err) {
-      console.error('Error querying admin user:', err);
-      res.status(500).json({ code: 500, msg: '登录失败' });
-      return;
-    }
-    
-    if (result.length === 0) {
-      res.status(401).json({ code: 401, msg: '用户名或密码错误' });
-      return;
-    }
-    
-    const admin = result[0];
-    if (password !== admin.password) {
-      res.status(401).json({ code: 401, msg: '用户名或密码错误' });
-      return;
-    }
-    
-    // 生成token
-    const token = jwt.sign({ id: admin.id, username: admin.username, userType: 'admin' }, secretKey, { expiresIn: '24h' });
-    
-    res.json({
-      code: 200,
-      msg: '登录成功',
-      data: {
-        token,
-        adminId: admin.id,
-        username: admin.username,
-        realName: admin.real_name
-      }
-    });
-  });
-});
+// 管理端接口统一要求管理员令牌（登录只走 /api/auth/login/admin）
+app.use('/api/admin', requireRole('admin'));
 
 // 获取管理员统计数据（真实聚合）
 app.get('/api/admin/stats', (req, res) => {
@@ -3354,8 +3605,9 @@ const vFillMonths = (rows, months) => {
 // 可视化总览：按角色返回真实统计 + 多维分布 + 趋势
 app.get('/api/visualization/dashboard', async (req, res) => {
   try {
-    const userType = String(req.query.userType || 'admin');
-    const userId = Number(req.query.userId) || 0;
+    // 角色与用户 ID 一律取自 JWT，避免前端伪造 userType 查看全量数据
+    const userType = req.user.userType;
+    const userId = Number(req.user.id) || 0;
     // 学生只看自己的数据；教师/管理员看全量
     const personal = userType === 'student' && userId > 0;
     const A = personal ? 'WHERE student_id = ?' : '';

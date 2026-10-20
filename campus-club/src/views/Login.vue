@@ -58,6 +58,17 @@
               </el-input>
             </el-form-item>
 
+            <el-form-item prop="code" class="jd-form-item">
+              <div class="jd-code-row">
+                <el-input v-model="loginForm.code" placeholder="邮箱验证码" size="large" maxlength="6" class="jd-input" @keyup.enter="handleLogin">
+                  <template #prefix><span class="jd-input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></span></template>
+                </el-input>
+                <button type="button" class="jd-code-btn" :disabled="codeSending || countdown > 0" @click="sendCode">
+                  {{ countdown > 0 ? countdown + 's' : (codeSending ? '发送中...' : '获取验证码') }}
+                </button>
+              </div>
+            </el-form-item>
+
             <div class="jd-form-extra">
               <label class="jd-checkbox"><input type="checkbox" v-model="rememberMe" /><span class="jd-checkbox__mark" /><span>记住密码</span></label>
               <a class="jd-link" @click="showResetDialog = true">忘记密码？</a>
@@ -99,7 +110,13 @@
       </div>
       <div v-else class="reset-form">
         <p class="reset-form__tip reset-form__tip--success">✓ 身份验证通过，请设置新密码</p>
-        <el-input v-model="resetForm.newPassword" type="password" placeholder="新密码" size="large" show-password style="margin-bottom:14px"/>
+        <div class="jd-code-row" style="margin-bottom:14px">
+          <el-input v-model="resetForm.code" placeholder="邮箱验证码" maxlength="6" size="large" class="jd-input"/>
+          <button type="button" class="jd-code-btn" :disabled="resetCodeSending || resetCountdown > 0" @click="sendResetCode">
+            {{ resetCountdown > 0 ? resetCountdown + 's' : (resetCodeSending ? '发送中...' : '获取验证码') }}
+          </button>
+        </div>
+        <el-input v-model="resetForm.newPassword" type="password" placeholder="新密码（至少 6 位）" size="large" show-password style="margin-bottom:14px"/>
         <el-input v-model="resetForm.confirmPassword" type="password" placeholder="确认新密码" size="large" show-password style="margin-bottom:14px"/>
         <button class="jd-submit" style="width:100%" :disabled="resetLoading" @click="doResetPassword"><span v-if="resetLoading" class="jd-submit__spinner" />重置密码</button>
         <button class="jd-btn-back" @click="resetStep=1">返回上一步</button>
@@ -109,7 +126,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../api/auth'
@@ -128,7 +145,28 @@ const switchType = (type) => router.push(`/login/${type}`)
 const goToRegister = () => router.push(`/register/${userType.value}`)
 
 const showResetDialog = ref(false), resetStep = ref(1), resetLoading = ref(false)
-const resetForm = reactive({ userType: '', username: '', realName: '', newPassword: '', confirmPassword: '' })
+const resetForm = reactive({ userType: '', username: '', realName: '', code: '', newPassword: '', confirmPassword: '' })
+const resetCodeSending = ref(false), resetCountdown = ref(0)
+let resetTimer = null
+
+const sendResetCode = async () => {
+  if (!resetForm.userType || !resetForm.username) { ElMessage.warning('请先选择身份并填写用户名'); return }
+  resetCodeSending.value = true
+  try {
+    const res = await request.post('/api/auth/send-code', { username: resetForm.username, userType: resetForm.userType })
+    ElMessage.success(res.msg || '验证码已发送')
+    resetCountdown.value = 60
+    clearInterval(resetTimer)
+    resetTimer = setInterval(() => {
+      resetCountdown.value -= 1
+      if (resetCountdown.value <= 0) clearInterval(resetTimer)
+    }, 1000)
+  } catch (e) {
+    ElMessage.error(e.msg || '验证码发送失败')
+  } finally {
+    resetCodeSending.value = false
+  }
+}
 
 const verifyIdentity = async () => {
   if (!resetForm.userType || !resetForm.username || !resetForm.realName) { ElMessage.warning('请填写完整信息'); return }
@@ -140,19 +178,48 @@ const verifyIdentity = async () => {
   resetLoading.value = false
 }
 const doResetPassword = async () => {
-  if (!resetForm.newPassword || resetForm.newPassword.length < 3) { ElMessage.warning('密码至少3位'); return }
+  if (!resetForm.code) { ElMessage.warning('请输入邮箱验证码'); return }
+  if (!resetForm.newPassword || resetForm.newPassword.length < 6) { ElMessage.warning('密码至少 6 位'); return }
   if (resetForm.newPassword !== resetForm.confirmPassword) { ElMessage.warning('两次密码不一致'); return }
   resetLoading.value = true
   try {
-    const res = await request.post('/api/auth/reset-password', { username: resetForm.username, userType: resetForm.userType, realName: resetForm.realName, newPassword: resetForm.newPassword })
+    const res = await request.post('/api/auth/reset-password', { username: resetForm.username, userType: resetForm.userType, realName: resetForm.realName, newPassword: resetForm.newPassword, code: resetForm.code })
     if (res.code === 200) { ElMessage.success('密码重置成功'); showResetDialog.value = false; resetStep.value = 1 } else { ElMessage.error(res.msg || '失败') }
   } catch { ElMessage.error('重置失败') }
   resetLoading.value = false
 }
 
-const loginFormRef = ref(null), loginForm = reactive({ username: '', password: '' })
+const loginFormRef = ref(null), loginForm = reactive({ username: '', password: '', code: '' })
 const showPassword = ref(false), rememberMe = ref(false), errorMsg = ref(''), isLoading = ref(false)
-const loginRules = { username: [{ required: true, message: '请输入用户名', trigger: 'blur' }], password: [{ required: true, message: '请输入密码', trigger: 'blur' }] }
+const codeSending = ref(false), countdown = ref(0)
+let countdownTimer = null
+const loginRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  code: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }]
+}
+
+const sendCode = async () => {
+  if (!loginForm.username) { ElMessage.warning('请先输入用户名'); return }
+  codeSending.value = true
+  try {
+    const res = await request.post('/api/auth/send-code', {
+      username: loginForm.username,
+      userType: userType.value
+    })
+    ElMessage.success(res.msg || '验证码已发送')
+    countdown.value = 60
+    clearInterval(countdownTimer)
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1
+      if (countdown.value <= 0) clearInterval(countdownTimer)
+    }, 1000)
+  } catch (e) {
+    ElMessage.error(e.msg || '验证码发送失败')
+  } finally {
+    codeSending.value = false
+  }
+}
 
 const handleLogin = async () => {
   try {
@@ -178,6 +245,7 @@ const handleLogin = async () => {
   } catch (error) { errorMsg.value = error.msg || error.message || '登录失败，请检查用户名和密码' } finally { isLoading.value = false }
 }
 const isTyping = ref(false)
+onUnmounted(() => { clearInterval(countdownTimer); clearInterval(resetTimer) })
 </script>
 
 <style scoped>
@@ -228,6 +296,17 @@ const isTyping = ref(false)
 .jd-input-icon svg { width: 20px; height: 20px; color: #bbb; transition: color 0.25s; }
 .jd-input :deep(.el-input.is-focus) .jd-input-icon svg { color: #e2231a; }
 .jd-pwd-toggle { font-size: 13px; color: #999; cursor: pointer; padding: 4px 8px; } .jd-pwd-toggle:hover { color: #e2231a; }
+
+.jd-code-row { display: flex; gap: 10px; width: 100%; align-items: stretch; }
+.jd-code-row .jd-input { flex: 1; }
+.jd-code-btn {
+  flex-shrink: 0; min-width: 116px; padding: 0 14px; height: 48px; border-radius: 8px;
+  border: 1px solid rgba(43, 90, 237, 0.35); background: rgba(43, 90, 237, 0.06);
+  color: var(--color-primary); font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.jd-code-btn:hover:not(:disabled) { background: rgba(43, 90, 237, 0.12); }
+.jd-code-btn:disabled { color: #9aa3b5; border-color: #d8dce6; background: #f5f6f8; cursor: not-allowed; }
 
 .jd-form-extra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .jd-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; cursor: pointer; }
