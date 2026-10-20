@@ -157,7 +157,7 @@
           <div class="result-list">
             <div class="result-card" v-for="item in recommendList" :key="'rec-' + item.id" @click="$router.push(`/成果详情/${item.id}`)">
               <div class="result-card__cover">
-                <img :src="item.cover" alt="成果封面" @error="e => e.target.src = getPlaceholderCover(item.id, item.type)" />
+                <img :src="item.cover" alt="成果封面" loading="lazy" @error="e => e.target.src = getPlaceholderCover(item.id, item.type)" />
                 <span class="result-card__badge result-card__badge--hot">🔥 热门</span>
               </div>
               <div class="result-card__body">
@@ -184,7 +184,7 @@
           <div class="result-list">
             <div class="result-card" v-for="item in newList" :key="'new-' + item.id" @click="$router.push(`/成果详情/${item.id}`)">
               <div class="result-card__cover">
-                <img :src="item.cover" alt="成果封面" @error="e => e.target.src = getPlaceholderCover(item.id, item.type)" />
+                <img :src="item.cover" alt="成果封面" loading="lazy" @error="e => e.target.src = getPlaceholderCover(item.id, item.type)" />
                 <span class="result-card__badge result-card__badge--new">🆕 最新</span>
               </div>
               <div class="result-card__body">
@@ -254,6 +254,7 @@
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '../components/PageLayout.vue'
 import request from '../utils/request'
+import { getPlaceholderCover } from '../utils/cover'
 
 const totalResult = ref(0)
 const incubateResult = ref(0)
@@ -302,31 +303,6 @@ const categoryIcons = {
   '其他': '📦', '论文': '📄', '专利': '📜', '软件': '💻', '硬件': '⚡'
 }
 const getCategoryIcon = (name) => categoryIcons[name] || '📌'
-
-// 生成本地SVG占位封面（无需外部网络），根据id产生不同的渐变色
-const placeholderColors = [
-  ['#667eea', '#764ba2'], ['#f093fb', '#f5576c'], ['#4facfe', '#00f2fe'],
-  ['#43e97b', '#38f9d7'], ['#fa709a', '#fee140'], ['#a18cd1', '#fbc2eb'],
-  ['#fccb90', '#d57eeb'], ['#e0c3fc', '#8ec5fc'], ['#f5576c', '#ff6f00'],
-  ['#30cfd0', '#330867'], ['#a8edea', '#fed6e3'], ['#5ee7df', '#b490ca'],
-  ['#d299c2', '#fef9d7'], ['#f6d365', '#fda085'], ['#96fbc4', '#f9f586'],
-  ['#ffecd2', '#fcb69f']
-]
-const getPlaceholderCover = (id, type) => {
-  const [c1, c2] = placeholderColors[(id || 1) % placeholderColors.length]
-  const icon = categoryIcons[type] || '📦'
-  // URL-encode 中文以避免 SVG 解析问题
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
-  <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%" style="stop-color:${c1}"/>
-    <stop offset="100%" style="stop-color:${c2}"/>
-  </linearGradient></defs>
-  <rect width="400" height="240" fill="url(#g)" rx="8"/>
-  <text x="200" y="105" text-anchor="middle" font-size="48" fill="white" opacity="0.9">${icon}</text>
-  <text x="200" y="148" text-anchor="middle" font-size="14" fill="white" opacity="0.7" font-family="sans-serif">${type || '成果'}</text>
-</svg>`
-  return 'data:image/svg+xml,' + encodeURIComponent(svg)
-}
 
 const loadAchievements = async () => {
   try {
@@ -742,14 +718,24 @@ onMounted(() => { loadAchievements(); loadNotifications() })
   transform: translateX(4px);
 }
 .result-card__cover {
-  width: 160px;
-  height: 115px;
-  border-radius: var(--radius-md);
+  width: 168px;
+  height: 120px;
+  border-radius: 14px;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
+  box-shadow: 0 8px 20px rgba(43, 90, 237, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+}
+.result-card__cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(9, 16, 38, 0.22), transparent 42%);
+  pointer-events: none;
 }
 .result-card__cover img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;

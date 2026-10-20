@@ -62,6 +62,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import { getPlaceholderCover } from '../utils/cover'
 import PageLayout from '../components/PageLayout.vue'
 
 const router = useRouter()
@@ -87,26 +88,6 @@ const filteredResults = computed(() => {
 
 const doSearch = () => {}
 
-const placeholderColors = [
-  ['#667eea','#764ba2'],['#f093fb','#f5576c'],['#4facfe','#00f2fe'],
-  ['#43e97b','#38f9d7'],['#fa709a','#fee140'],['#a18cd1','#fbc2eb'],
-  ['#fccb90','#d57eeb'],['#e0c3fc','#8ec5fc'],['#30cfd0','#330867'],
-  ['#a8edea','#fed6e3'],['#5ee7df','#b490ca'],['#d299c2','#fef9d7'],
-  ['#f6d365','#fda085'],['#96fbc4','#f9f586'],['#ffecd2','#fcb69f']
-]
-const getPlaceholderCover = (id, type) => {
-  const [c1, c2] = placeholderColors[(id || 1) % placeholderColors.length]
-  const icon = { '软件':'💻','论文':'📄','文创':'🎨','发明':'⚡','实践':'🔧','艺术':'🎭','创业':'🚀','竞赛':'🏆','调查':'📊' }[type] || '📦'
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
-  <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%" style="stop-color:${c1}"/><stop offset="100%" style="stop-color:${c2}"/>
-  </linearGradient></defs>
-  <rect width="400" height="240" fill="url(#g)" rx="8"/>
-  <text x="200" y="105" text-anchor="middle" font-size="48" fill="white" opacity="0.9">${icon}</text>
-  <text x="200" y="148" text-anchor="middle" font-size="14" fill="white" opacity="0.7" font-family="sans-serif">${type||'成果'}</text>
-</svg>`
-  return 'data:image/svg+xml,' + encodeURIComponent(svg)
-}
 const getCover = (item) => item.cover || getPlaceholderCover(item.id, item.type)
 
 const loadResults = async () => {
