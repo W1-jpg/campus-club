@@ -121,6 +121,15 @@
               </el-input>
             </el-form-item>
 
+            <el-form-item prop="code" class="jd-form-item">
+              <div class="jd-code-row">
+                <el-input v-model="registerForm.code" placeholder="邮箱验证码" maxlength="6" size="large" class="jd-input"/>
+                <button type="button" class="jd-code-btn" :disabled="codeSending || countdown > 0" @click="sendRegisterCode">
+                  {{ countdown > 0 ? countdown + 's' : (codeSending ? '发送中...' : '获取验证码') }}
+                </button>
+              </div>
+            </el-form-item>
+
             <transition name="jd-error-fade">
               <div v-if="errorMsg" class="jd-error"><span class="jd-error__icon">!</span>{{ errorMsg }}</div>
             </transition>
@@ -146,24 +155,51 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { register } from '../api/auth'
+import request from '../utils/request'
 
 const router = useRouter()
 const route = useRoute()
 const userType = ref(route.params.userType || 'student')
-watch(() => route.params.userType, (t) => { userType.value = t || 'student'; registerForm.value = { username: '', password: '', confirmPassword: '', realName: '', phone: '', teacherNo: '', email: '', college: '', field: '', title: '', organization: '', companyName: '', industry: '', address: '' } })
+watch(() => route.params.userType, (t) => { userType.value = t || 'student'; registerForm.value = { username: '', password: '', confirmPassword: '', realName: '', phone: '', teacherNo: '', email: '', code: '', college: '', field: '', title: '', organization: '', companyName: '', industry: '', address: '' } })
 
 const userTypes = [{ code: 'student', name: '客户端' },{ code: 'teacher', name: '教师端' },{ code: 'admin', name: '管理员端' },{ code: 'expert', name: '专家端' },{ code: 'enterprise', name: '企业端' }]
 const switchType = (type) => router.push(`/register/${type}`)
 const goBack = () => router.push(`/login/${userType.value}`)
 
 const registerFormRef = ref(null)
-const registerForm = ref({ username: '', password: '', confirmPassword: '', realName: '', phone: '', teacherNo: '', email: '', college: '', field: '', title: '', organization: '', companyName: '', industry: '', address: '' })
+const registerForm = ref({ username: '', password: '', confirmPassword: '', realName: '', phone: '', teacherNo: '', email: '', code: '', college: '', field: '', title: '', organization: '', companyName: '', industry: '', address: '' })
 const industries = ['信息技术','互联网','金融','教育','制造业','医疗健康','能源环保','其他']
 const errorMsg = ref(''), isLoading = ref(false)
+const codeSending = ref(false), countdown = ref(0)
+let countdownTimer = null
+const sendRegisterCode = async () => {
+  const email = String(registerForm.value.email || '').trim()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { ElMessage.warning('请先输入正确的邮箱'); return }
+  codeSending.value = true
+  try {
+    const res = await request.post('/api/auth/send-code', {
+      purpose: 'register',
+      email,
+      username: registerForm.value.username
+    })
+    ElMessage.success(res.msg || '验证码已发送')
+    countdown.value = 60
+    clearInterval(countdownTimer)
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1
+      if (countdown.value <= 0) clearInterval(countdownTimer)
+    }, 1000)
+  } catch (e) {
+    ElMessage.error(e.msg || '验证码发送失败')
+  } finally {
+    codeSending.value = false
+  }
+}
+onUnmounted(() => clearInterval(countdownTimer))
 
 const registerRules = computed(() => ({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -173,6 +209,7 @@ const registerRules = computed(() => ({
   phone: [{ required: userType.value === 'student', message: '请输入手机号', trigger: 'blur' }],
   teacherNo: [{ required: userType.value === 'teacher', message: '请输入教师编号', trigger: 'blur' }],
   email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }, { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+  code: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }],
   college: [{ required: userType.value === 'student' || userType.value === 'teacher', message: '请选择学院', trigger: 'change' }],
   field: [{ required: userType.value === 'expert', message: '请选择专业领域', trigger: 'change' }],
   title: [{ required: userType.value === 'expert', message: '请输入职称', trigger: 'blur' }],
@@ -228,6 +265,15 @@ const handleRegister = async () => {
 
 .jd-form { display: flex; flex-direction: column; }
 .jd-form-item { margin-bottom: 18px; }
+.jd-code-row { display: flex; gap: 10px; width: 100%; align-items: stretch; }
+.jd-code-row .jd-input { flex: 1; }
+.jd-code-btn {
+  flex-shrink: 0; min-width: 112px; padding: 0 12px; height: 46px; border-radius: 8px;
+  border: 1px solid rgba(43, 90, 237, 0.35); background: rgba(43, 90, 237, 0.06);
+  color: var(--color-primary); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.jd-code-btn:hover:not(:disabled) { background: rgba(43, 90, 237, 0.12); }
+.jd-code-btn:disabled { color: #9aa3b5; border-color: #d8dce6; background: #f5f6f8; cursor: not-allowed; }
 .jd-input :deep(.el-input__wrapper) { border-radius: 8px; box-shadow: 0 0 0 1px #ddd; padding: 2px 16px; background: #fafafa; transition: all 0.25s; height: 46px; }
 .jd-input :deep(.el-input__wrapper:hover) { box-shadow: 0 0 0 1px #bbb; background: #fff; }
 .jd-input :deep(.el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 2px #e2231a; background: #fff; }

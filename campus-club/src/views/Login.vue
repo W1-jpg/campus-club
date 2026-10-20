@@ -58,17 +58,6 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item prop="code" class="jd-form-item">
-              <div class="jd-code-row">
-                <el-input v-model="loginForm.code" placeholder="邮箱验证码" size="large" maxlength="6" class="jd-input" @keyup.enter="handleLogin">
-                  <template #prefix><span class="jd-input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></span></template>
-                </el-input>
-                <button type="button" class="jd-code-btn" :disabled="codeSending || countdown > 0" @click="sendCode">
-                  {{ countdown > 0 ? countdown + 's' : (codeSending ? '发送中...' : '获取验证码') }}
-                </button>
-              </div>
-            </el-form-item>
-
             <div class="jd-form-extra">
               <label class="jd-checkbox"><input type="checkbox" v-model="rememberMe" /><span class="jd-checkbox__mark" /><span>记住密码</span></label>
               <a class="jd-link" @click="showResetDialog = true">忘记密码？</a>
@@ -189,36 +178,11 @@ const doResetPassword = async () => {
   resetLoading.value = false
 }
 
-const loginFormRef = ref(null), loginForm = reactive({ username: '', password: '', code: '' })
+const loginFormRef = ref(null), loginForm = reactive({ username: '', password: '' })
 const showPassword = ref(false), rememberMe = ref(false), errorMsg = ref(''), isLoading = ref(false)
-const codeSending = ref(false), countdown = ref(0)
-let countdownTimer = null
 const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }]
-}
-
-const sendCode = async () => {
-  if (!loginForm.username) { ElMessage.warning('请先输入用户名'); return }
-  codeSending.value = true
-  try {
-    const res = await request.post('/api/auth/send-code', {
-      username: loginForm.username,
-      userType: userType.value
-    })
-    ElMessage.success(res.msg || '验证码已发送')
-    countdown.value = 60
-    clearInterval(countdownTimer)
-    countdownTimer = setInterval(() => {
-      countdown.value -= 1
-      if (countdown.value <= 0) clearInterval(countdownTimer)
-    }, 1000)
-  } catch (e) {
-    ElMessage.error(e.msg || '验证码发送失败')
-  } finally {
-    codeSending.value = false
-  }
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 const handleLogin = async () => {
@@ -245,7 +209,7 @@ const handleLogin = async () => {
   } catch (error) { errorMsg.value = error.msg || error.message || '登录失败，请检查用户名和密码' } finally { isLoading.value = false }
 }
 const isTyping = ref(false)
-onUnmounted(() => { clearInterval(countdownTimer); clearInterval(resetTimer) })
+onUnmounted(() => clearInterval(resetTimer))
 </script>
 
 <style scoped>

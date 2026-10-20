@@ -104,17 +104,17 @@ const maskEmail = (value) => {
   return name.slice(0, 2) + '***@' + domain;
 };
 
-async function sendLoginCode(code, userType, username) {
-  const to = process.env.MAIL_TO || process.env.SMTP_USER;
-  const roleText = { student: '学生', teacher: '教师', admin: '管理员', expert: '评审专家', enterprise: '企业' }[userType] || userType;
-  const subject = '【校园社团平台】登录验证码';
-  const text = `您正在以${roleText}身份（账号：${username}）登录校园社团成果展示与孵化系统。\n\n验证码：${code}\n\n验证码 5 分钟内有效。如非本人操作，请忽略本邮件并尽快修改密码。`;
+async function sendCodeMail(code, { to, roleText, username, action }) {
+  const isRegister = action === 'register';
+  const subject = isRegister ? '【校园社团平台】注册验证码' : '【校园社团平台】身份验证码';
+  const actionText = isRegister ? '注册账号' : '重置密码';
+  const text = `您正在${actionText}（${roleText}，账号：${username}）。\n\n验证码：${code}\n\n验证码 5 分钟内有效。如非本人操作，请忽略本邮件。`;
   const html = `<div style="font-family:Arial,'Microsoft YaHei',sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #eee;border-radius:12px">
     <h2 style="margin:0 0 8px;color:#2B5AED">校园社团成果展示与孵化系统</h2>
-    <p style="color:#555">您正在以 <b>${roleText}</b> 身份（账号：<b>${username}</b>）登录。</p>
-    <p style="color:#555;margin:16px 0 8px">本次登录验证码：</p>
+    <p style="color:#555">您正在<b>${actionText}</b>（<b>${roleText}</b>，账号：<b>${username}</b>）。</p>
+    <p style="color:#555;margin:16px 0 8px">本次验证码：</p>
     <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111;background:#f5f7ff;border-radius:8px;padding:14px 20px;text-align:center">${code}</div>
-    <p style="color:#999;font-size:13px;margin-top:18px">验证码 5 分钟内有效。如非本人操作，请忽略本邮件并尽快修改密码。</p>
+    <p style="color:#999;font-size:13px;margin-top:18px">验证码 5 分钟内有效。如非本人操作，请忽略本邮件。</p>
   </div>`;
   if (!mailer) {
     console.log(`[mail:dev] to=${to} ${roleText}:${username} code=${code}`);
@@ -141,8 +141,7 @@ function issueToken(user, userType) {
   );
 }
 
-function checkLoginCode(userType, username, code) {
-  const key = `${userType}:${username}`;
+function checkCode(key, code) {
   const record = loginCodes.get(key);
   if (!record) return { ok: false, msg: '请先获取邮箱验证码' };
   if (Date.now() > record.expiresAt) {
@@ -159,6 +158,14 @@ function checkLoginCode(userType, username, code) {
   }
   loginCodes.delete(key);
   return { ok: true };
+}
+
+function checkRegisterCode(email, code) {
+  return checkCode(`register:${String(email || '').trim().toLowerCase()}`, code);
+}
+
+function checkResetCode(userType, username, code) {
+  return checkCode(`reset:${userType}:${String(username || '').trim()}`, code);
 }
 
 // 所有 /api 请求（公开接口除外）必须携带有效 JWT
@@ -194,14 +201,12 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const isStaff = (user) => Boolean(user && ['teacher', 'admin'].includes(user.userType));
 
-// 发送登录验证码
+// 发送验证码（注册 / 重置密码）
 app.post('/api/auth/send-code', async (req, res) => {
-  const { username, userType } = req.body || {};
-  const name = String(username || '').trim();
-  if (!USER_TYPES.includes(userType)) return res.json({ code: 400, msg: '角色类型不正确' });
-  if (!name || name.length > 50) return res.json({ code: 400, msg: '请输入正确的用户名' });
-
+  const { purpose = 'reset', email, username, userType } = req.body || {};
   const now = Date.now();
+
+  // 同一 IP 10 分钟内最多 10 次
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const ipRec = ipSendLog.get(ip);
   if (!ipRec || now > ipRec.resetAt) {
@@ -212,7 +217,29 @@ app.post('/api/auth/send-code', async (req, res) => {
     ipRec.count += 1;
   }
 
-  const key = `${userType}:${name}`;
+  let key, to, roleText, name, action;
+  if (purpose === 'register') {
+    const mail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      return res.json({ code: 400, msg: '请输入正确的邮箱地址' });
+    }
+    key = `register:${mail}`;
+    to = mail;
+    roleText = '新用户';
+    name = String(username || '').trim() || mail;
+    action = 'register';
+  } else if (purpose === 'reset') {
+    if (!USER_TYPES.includes(userType)) return res.json({ code: 400, msg: '角色类型不正确' });
+    name = String(username || '').trim();
+    if (!name || name.length > 50) return res.json({ code: 400, msg: '请输入正确的用户名' });
+    key = `reset:${userType}:${name}`;
+    to = process.env.MAIL_TO || process.env.SMTP_USER;
+    roleText = { student: '学生', teacher: '教师', admin: '管理员', expert: '评审专家', enterprise: '企业' }[userType] || userType;
+    action = 'reset';
+  } else {
+    return res.json({ code: 400, msg: '不支持的验证码类型' });
+  }
+
   if (now - (codeSendLog.get(key) || 0) < CODE_COOLDOWN_MS) {
     return res.json({ code: 429, msg: '验证码已发送，请 60 秒后再试' });
   }
@@ -222,7 +249,7 @@ app.post('/api/auth/send-code', async (req, res) => {
   codeSendLog.set(key, now);
 
   try {
-    const result = await sendLoginCode(code, userType, name);
+    const result = await sendCodeMail(code, { to, roleText, username: name, action });
     return res.json({
       code: 200,
       msg: result.delivered ? `验证码已发送至 ${maskEmail(result.to)}` : '验证码已生成（未配置 SMTP，请查看服务端日志）'
@@ -264,8 +291,6 @@ app.post('/api/auth/login/student', (req, res) => {
     }
     
     const student = result[0];
-    const codeCheck = checkLoginCode('student', username, req.body.code);
-    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({
       code: 200,
       msg: '登录成功',
@@ -307,8 +332,6 @@ app.post('/api/auth/login/teacher', (req, res) => {
     }
     
     const teacher = result[0];
-    const codeCheck = checkLoginCode('teacher', username, req.body.code);
-    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({
       code: 200,
       msg: '登录成功',
@@ -365,9 +388,6 @@ app.post('/api/auth/login/admin', (req, res) => {
       return;
     }
 
-    const codeCheck = checkLoginCode('admin', username, req.body.code);
-    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
-
     // 生成token
     const token = issueToken(admin, 'admin');
     
@@ -416,7 +436,7 @@ app.post('/api/auth/reset-password', (req, res) => {
   if (String(newPassword).length < 6) { res.json({ code: 400, msg: '密码至少 6 位' }); return; }
 
   // 重置密码同样必须通过邮箱验证码，避免仅凭“用户名+姓名”接管账号
-  const codeCheck = checkLoginCode(userType, String(username).trim(), code);
+  const codeCheck = checkResetCode(userType, username, code);
   if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
   db.query(`SELECT id FROM ${table} WHERE username = ? AND real_name = ? LIMIT 1`, [username, realName], (err, rows) => {
     if (err) { console.error('重置密码失败:', err); res.json({ code: 500, msg: '重置密码失败' }); return; }
@@ -476,7 +496,12 @@ app.post('/api/auth/register/student', (req, res) => {
     });
     return;
   }
-  
+
+  // 注册必须通过邮箱验证码
+  if (!email) { res.json({ code: 400, msg: '请填写邮箱' }); return; }
+  const codeCheck = checkRegisterCode(email, req.body.code);
+  if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
+
   // 检查用户名是否已存在
   const checkSql = 'SELECT * FROM student_user WHERE username = ?';
   db.query(checkSql, [username], (err, result) => {
@@ -540,7 +565,12 @@ app.post('/api/auth/register/teacher', (req, res) => {
     });
     return;
   }
-  
+
+  // 注册必须通过邮箱验证码
+  if (!email) { res.json({ code: 400, msg: '请填写邮箱' }); return; }
+  const codeCheck = checkRegisterCode(email, req.body.code);
+  if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
+
   // 检查用户名是否已存在
   const checkSql = 'SELECT * FROM teacher_user WHERE username = ?';
   db.query(checkSql, [username], (err, result) => {
@@ -749,8 +779,6 @@ app.post('/api/auth/login/expert', (req, res) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length === 0) { res.json({ code: 400, msg: '用户名或密码错误' }); return; }
     const user = result[0];
-    const codeCheck = checkLoginCode('expert', username, req.body.code);
-    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({ code: 200, data: { token: issueToken(user, 'expert'), user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, field: user.field, title: user.title, organization: user.organization, userType: 'expert' } } });
   });
 });
@@ -763,8 +791,6 @@ app.post('/api/auth/login/enterprise', (req, res) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length === 0) { res.json({ code: 400, msg: '用户名或密码错误' }); return; }
     const user = result[0];
-    const codeCheck = checkLoginCode('enterprise', username, req.body.code);
-    if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
     res.json({ code: 200, data: { token: issueToken(user, 'enterprise'), user: { id: user.id, username: user.username, realName: user.real_name, email: user.email, companyName: user.company_name, industry: user.industry, address: user.address, userType: 'enterprise' } } });
   });
 });
@@ -774,6 +800,8 @@ app.post('/api/auth/register/expert', (req, res) => {
   const { username, password, confirmPassword, realName, email, field, title, organization } = req.body;
   if (!username || !password || !realName || !email) { res.json({ code: 400, msg: '缺少必要参数' }); return; }
   if (password !== confirmPassword) { res.json({ code: 400, msg: '两次密码不一致' }); return; }
+  const codeCheck = checkRegisterCode(email, req.body.code);
+  if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
   db.query('SELECT id FROM expert_user WHERE username = ?', [username], (err, result) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length > 0) { res.json({ code: 400, msg: '用户名已存在' }); return; }
@@ -791,6 +819,8 @@ app.post('/api/auth/register/enterprise', (req, res) => {
   const { username, password, confirmPassword, realName, email, companyName, industry, address } = req.body;
   if (!username || !password || !realName || !email || !companyName) { res.json({ code: 400, msg: '缺少必要参数' }); return; }
   if (password !== confirmPassword) { res.json({ code: 400, msg: '两次密码不一致' }); return; }
+  const codeCheck = checkRegisterCode(email, req.body.code);
+  if (!codeCheck.ok) { res.json({ code: 400, msg: codeCheck.msg }); return; }
   db.query('SELECT id FROM enterprise_user WHERE username = ?', [username], (err, result) => {
     if (err) { res.json({ code: 500, msg: '数据库查询失败' }); return; }
     if (result.length > 0) { res.json({ code: 400, msg: '用户名已存在' }); return; }
