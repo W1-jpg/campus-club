@@ -10,6 +10,16 @@
           </p>
         </div>
         <div class="viz-header__actions">
+          <el-radio-group
+            v-if="userType === 'student'"
+            v-model="scopeMode"
+            class="scope-switch"
+            :disabled="loading"
+            @change="load"
+          >
+            <el-radio-button value="global">全平台</el-radio-button>
+            <el-radio-button value="personal">我的数据</el-radio-button>
+          </el-radio-group>
           <el-tag :type="scope === 'personal' ? 'success' : 'primary'" effect="light" round>
             {{ scope === 'personal' ? '个人数据' : '全量数据' }}
           </el-tag>
@@ -87,6 +97,7 @@ import { pieOption, barOption, lineOption, funnelOption, PALETTE } from '../util
 const router = useRouter()
 
 const userType = ref(localStorage.getItem('userType') || 'student')
+const scopeMode = ref('global')
 const scope = ref('global')
 const data = ref(null)
 const loading = ref(false)
@@ -105,7 +116,8 @@ const load = async () => {
   try {
     const res = await getVisualizationDashboard({
       userType: userType.value,
-      userId: currentUserId()
+      userId: currentUserId(),
+      scope: userType.value === 'student' ? scopeMode.value : 'global'
     })
     if (res.code === 200) {
       data.value = res.data
@@ -332,6 +344,20 @@ onMounted(load)
 }
 .btn-emoji {
   margin-right: 4px;
+}
+.scope-switch :deep(.el-radio-button__inner) {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--glass-bg);
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+.scope-switch :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  color: #fff;
+  background: var(--gradient-primary);
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(43, 90, 237, 0.28);
 }
 
 /* KPI */
