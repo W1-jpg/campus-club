@@ -27,6 +27,9 @@ public interface EnterpriseAccountService {
     /** 查询累计消费金额 */
     BigDecimal getTotalSpent(Long enterpriseId);
 
+    /** 主动向支付宝查询待支付订单，成功后入账（不依赖异步回调） */
+    Map<String, Object> syncPendingOrders(Long enterpriseId);
+
     /** 分页查询交易记录 */
     Map<String, Object> getRecordsPage(Long enterpriseId, String type, Integer page, Integer size);
 

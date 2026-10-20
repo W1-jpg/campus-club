@@ -29,6 +29,9 @@ public interface RechargeRecordRepository extends JpaRepository<RechargeRecord, 
 
     int countByEnterpriseIdAndStatus(Long enterpriseId, String status);
 
+    /** 最近若干条待支付订单，用于主动查询支付结果 */
+    List<RechargeRecord> findTop20ByEnterpriseIdAndStatusOrderByCreateTimeDesc(Long enterpriseId, String status);
+
     int countByEnterpriseIdAndStatusAndPayMethodNot(Long enterpriseId, String status, String payMethod);
 
     /** 幂等地把订单标记为成功，只有从非 SUCCESS 状态更新时才返回 1 */

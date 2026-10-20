@@ -67,6 +67,14 @@ public class AlipayController {
     }
 
     /**
+     * 主动同步待支付订单：不依赖异步回调，解决了 notify_url 不可达时余额不到账的问题
+     */
+    @PostMapping("/sync/{enterpriseId}")
+    public Map<String, Object> syncPending(@PathVariable Long enterpriseId) {
+        return result(200, "success", accountService.syncPendingOrders(enterpriseId));
+    }
+
+    /**
      * 获取企业账户 + 统计信息
      */
     @GetMapping("/account/{enterpriseId}/stats")

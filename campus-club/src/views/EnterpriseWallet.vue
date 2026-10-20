@@ -46,9 +46,14 @@
                 </div>
               </div>
             </div>
-            <el-button type="primary" size="large" round @click="openRecharge" class="recharge-btn">
-              <el-icon><Plus /></el-icon> 充值
-            </el-button>
+            <div class="balance-actions">
+              <el-button size="large" round :loading="syncing" @click="syncPayments(false)">
+                <el-icon><Refresh /></el-icon> 同步支付
+              </el-button>
+              <el-button type="primary" size="large" round @click="openRecharge" class="recharge-btn">
+                <el-icon><Plus /></el-icon> 充值
+              </el-button>
+            </div>
           </div>
           <div class="balance-card__footer">
             <span class="balance-card__update">最近更新：{{ wallet.updateTime ? fmtTime(wallet.updateTime) : '--' }}</span>
@@ -246,7 +251,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Lock, Check } from '@element-plus/icons-vue'
+import { Plus, Lock, Check, Refresh } from '@element-plus/icons-vue'
 import PageLayout from '../components/PageLayout.vue'
 import request from '../utils/request'
 
@@ -260,6 +265,36 @@ const stats = ref({ totalRecharge: 0, totalSpend: 0, rechargeCount: 0 })
 
 const enterpriseId = () => parseInt(localStorage.getItem('enterpriseId') || '0')
 const payServiceDown = ref(false)
+const syncing = ref(false)
+
+/**
+ * 主动同步待支付订单：不依赖支付宝异步回调
+ * 解决 notify_url 不可达时“沙箱已支付、系统余额不变”的问题
+ */
+const syncPayments = async (silent = false) => {
+  const eid = enterpriseId()
+  if (!eid) return
+  syncing.value = true
+  try {
+    const r = await request.post(`/api/alipay/sync/${eid}`)
+    if (r.code === 200) {
+      payServiceDown.value = false
+      const paid = Number(r.data?.paid || 0)
+      if (paid > 0) {
+        ElMessage.success(`已同步 ${paid} 笔支付，余额已更新`)
+        loadWallet()
+        loadTransactions()
+      } else if (!silent) {
+        ElMessage.info(r.data?.checked ? '暂未查询到已支付订单' : '没有待同步订单')
+      }
+    }
+  } catch (e) {
+    if (!e.status) payServiceDown.value = true
+    else if (!silent) ElMessage.error(e.msg || '同步支付状态失败')
+  } finally {
+    syncing.value = false
+  }
+}
 
 const loadWallet = async () => {
   const eid = enterpriseId()
@@ -368,7 +403,11 @@ const fmtTime = (d) => {
   return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0') + ':' + String(dt.getSeconds()).padStart(2,'0')
 }
 
-onMounted(() => { loadWallet(); loadTransactions() })
+onMounted(() => {
+  loadWallet()
+  loadTransactions()
+  syncPayments(true)
+})
 </script>
 
 <style scoped>
@@ -407,6 +446,7 @@ onMounted(() => { loadWallet(); loadTransactions() })
 .balance-card__footer { display: flex; justify-content: space-between; align-items: center; padding-top: var(--spacing-lg); border-top: 1px solid rgba(255,255,255,0.1); }
 .balance-card__update { font-size: var(--font-size-xs); opacity: 0.55; }
 .balance-card__safe { font-size: var(--font-size-xs); opacity: 0.55; display: flex; align-items: center; gap: 4px; }
+.balance-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .recharge-btn { font-weight: 600 !important; padding: 14px 28px !important; font-size: var(--font-size-lg) !important; height: auto !important; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
 
 /* 统计行 */

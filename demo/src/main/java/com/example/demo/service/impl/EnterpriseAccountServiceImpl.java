@@ -4,7 +4,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.alipay.api.AlipayClient;
 import com.alipay.api.internal.util.AlipaySignature;
 import com.alipay.api.request.AlipayTradePagePayRequest;
+import com.alipay.api.request.AlipayTradeQueryRequest;
 import com.alipay.api.response.AlipayTradePagePayResponse;
+import com.alipay.api.response.AlipayTradeQueryResponse;
 import com.example.demo.entity.EnterpriseAccount;
 import com.example.demo.entity.RechargeRecord;
 import com.example.demo.repository.EnterpriseAccountRepository;
@@ -266,6 +268,66 @@ public class EnterpriseAccountServiceImpl implements EnterpriseAccountService {
         result.put("total", recordPage.getTotalElements());
         result.put("page", pageNum);
         result.put("size", pageSize);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> syncPendingOrders(Long enterpriseId) {
+        List<RechargeRecord> pending = rechargeRecordRepository
+                .findTop20ByEnterpriseIdAndStatusOrderByCreateTimeDesc(enterpriseId, "PENDING");
+        int checked = 0;
+        int paid = 0;
+
+        for (RechargeRecord record : pending) {
+            checked++;
+            try {
+                AlipayTradeQueryRequest request = new AlipayTradeQueryRequest();
+                JSONObject biz = new JSONObject();
+                biz.put("out_trade_no", record.getOutTradeNo());
+                request.setBizContent(biz.toJSONString());
+
+                AlipayTradeQueryResponse response = alipayClient.execute(request);
+                if (response == null || !response.isSuccess()) {
+                    continue;
+                }
+                String tradeStatus = response.getTradeStatus();
+                if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+                    continue;
+                }
+                if (response.getTotalAmount() == null) {
+                    continue;
+                }
+                BigDecimal paidAmount = new BigDecimal(response.getTotalAmount());
+                if (record.getAmount() == null || paidAmount.compareTo(record.getAmount()) != 0) {
+                    log.warn("主动查询金额不一致 outTradeNo={}, order={}, paid={}",
+                            record.getOutTradeNo(), record.getAmount(), paidAmount);
+                    continue;
+                }
+
+                int updated = rechargeRecordRepository.markPaid(record.getId(), response.getTradeNo(), new Date());
+                if (updated == 0) {
+                    continue;
+                }
+
+                EnterpriseAccount account = accountRepository.findByEnterpriseId(record.getEnterpriseId());
+                if (account == null) {
+                    account = getOrCreateAccount(record.getEnterpriseId(), null);
+                }
+                account.setBalance(account.getBalance().add(paidAmount));
+                account.setTotalRecharge(account.getTotalRecharge().add(paidAmount));
+                account.setUpdateTime(new Date());
+                accountRepository.save(account);
+                paid++;
+            } catch (Exception e) {
+                log.warn("主动查询支付宝订单失败 outTradeNo={}", record.getOutTradeNo(), e);
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("checked", checked);
+        result.put("paid", paid);
+        result.put("pending", checked - paid);
         return result;
     }
 
