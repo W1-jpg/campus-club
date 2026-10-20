@@ -47,6 +47,9 @@
               </div>
             </div>
             <div class="balance-actions">
+              <el-button size="large" round @click="openExpense">
+                <el-icon><Minus /></el-icon> 支出
+              </el-button>
               <el-button size="large" round :loading="syncing" @click="syncPayments(false)">
                 <el-icon><Refresh /></el-icon> 同步支付
               </el-button>
@@ -245,13 +248,57 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- ==================== 支出弹窗 ==================== -->
+    <el-dialog v-model="expenseDlg" title="企业支出" width="500px" :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="选择资源">
+          <el-select v-model="expenseForm.resourceId" filterable placeholder="请选择要采购的资源" style="width: 100%;">
+            <el-option
+              v-for="r in resourceOptions"
+              :key="r.id"
+              :label="`${r.title}（${r.type || '资源'}）`"
+              :value="r.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="支出金额">
+          <el-input-number
+            v-model="expenseForm.amount"
+            :min="0.01"
+            :max="Number(wallet.balance) || 0"
+            :precision="2"
+            :step="100"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="用途说明">
+          <el-input v-model="expenseForm.remark" placeholder="例如：采购创业导师服务" maxlength="100" show-word-limit />
+        </el-form-item>
+        <div class="expense-summary">
+          <div><span>当前余额</span><b>¥{{ formatMoney(wallet.balance) }}</b></div>
+          <div><span>支出后余额</span><b class="expense-after">¥{{ formatMoney(balanceAfterExpense) }}</b></div>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="expenseDlg = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="expenseLoading"
+          :disabled="!expenseForm.resourceId || !expenseForm.amount"
+          @click="submitExpense"
+        >
+          确认支出
+        </el-button>
+      </template>
+    </el-dialog>
   </PageLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Lock, Check, Refresh } from '@element-plus/icons-vue'
+import { Plus, Minus, Lock, Check, Refresh } from '@element-plus/icons-vue'
 import PageLayout from '../components/PageLayout.vue'
 import request from '../utils/request'
 
@@ -340,6 +387,56 @@ const loadTransactions = async () => {
 
 const onTabChange = () => { pageNum.value = 1; loadTransactions() }
 
+/* ========== 支出 ========== */
+const expenseDlg = ref(false)
+const expenseLoading = ref(false)
+const resourceOptions = ref([])
+const expenseForm = reactive({ resourceId: null, amount: 0, remark: '' })
+const balanceAfterExpense = computed(() => Math.max(Number(wallet.value.balance || 0) - Number(expenseForm.amount || 0), 0))
+
+const openExpense = async () => {
+  expenseForm.resourceId = null
+  expenseForm.amount = 0
+  expenseForm.remark = ''
+  expenseDlg.value = true
+  try {
+    const r = await request.get('/api/expense/resources')
+    if (r.code === 200) resourceOptions.value = r.data || []
+  } catch (e) {
+    ElMessage.error(e.msg || '加载资源列表失败')
+  }
+}
+
+const submitExpense = async () => {
+  if (!expenseForm.resourceId) { ElMessage.warning('请选择资源'); return }
+  const amount = Number(expenseForm.amount)
+  if (!(amount > 0)) { ElMessage.warning('请输入支出金额'); return }
+  if (amount > Number(wallet.value.balance || 0)) { ElMessage.warning('余额不足'); return }
+
+  expenseLoading.value = true
+  try {
+    const r = await request.post('/api/expense/pay', {
+      enterpriseId: enterpriseId(),
+      resourceId: expenseForm.resourceId,
+      amount,
+      remark: expenseForm.remark
+    })
+    if (r.code === 200) {
+      ElMessage.success(`支出成功，已扣除 ¥${formatMoney(amount)}`)
+      expenseDlg.value = false
+      activeTab.value = 'spend'
+      await loadWallet()
+      await loadTransactions()
+    } else {
+      ElMessage.error(r.msg || '支出失败')
+    }
+  } catch (e) {
+    ElMessage.error(e.msg || '支出失败')
+  } finally {
+    expenseLoading.value = false
+  }
+}
+
 /* ========== 充值弹窗 ========== */
 const rechargeDlg = ref(false)
 const presetAmounts = [500, 1000, 2000, 5000, 10000, 20000, 50000]
@@ -413,6 +510,18 @@ onMounted(() => {
 <style scoped>
 .wallet-content { max-width: var(--content-max-width-wide); margin: 0 auto; padding: var(--spacing-xl); }
 .pay-down-alert { margin-bottom: var(--spacing-lg); border-radius: var(--radius-lg); }
+.expense-summary {
+  margin: 4px 0 0 90px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f7f9ff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.expense-summary div { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+.expense-summary b { color: var(--text-primary); }
+.expense-summary .expense-after { color: #f56c6c; }
 
 /* ===== 页面头部 ===== */
 .page-hero { background: var(--gradient-hero); border-radius: var(--radius-xl); padding: var(--spacing-xxl) var(--spacing-xxxl); margin-bottom: var(--spacing-xl); color: var(--text-inverse); box-shadow: var(--shadow-lg); }
