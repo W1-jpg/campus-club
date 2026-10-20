@@ -1,0 +1,55 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/resource/resource",
+    "pages/notification/notification",
+    "pages/mine/mine",
+    "pages/login/login",
+    "pages/detail/detail",
+    "pages/upload/upload",
+    "pages/my-results/my-results",
+    "pages/my-incubation/my-incubation",
+    "pages/my-applications/my-applications",
+    "pages/award/award"
+  ],
+  "window": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "社团成果平台",
+    "navigationBarBackgroundColor": "#2B5AED",
+    "backgroundColor": "#F0F2F5"
+  },
+  "tabBar": {
+    "color": "#8F959E",
+    "selectedColor": "#2B5AED",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "成果市场",
+        "iconPath": "images/tab/market.png",
+        "selectedIconPath": "images/tab/market-active.png"
+      },
+      {
+        "pagePath": "pages/resource/resource",
+        "text": "资源对接",
+        "iconPath": "images/tab/resource.png",
+        "selectedIconPath": "images/tab/resource-active.png"
+      },
+      {
+        "pagePath": "pages/notification/notification",
+        "text": "消息",
+        "iconPath": "images/tab/notice.png",
+        "selectedIconPath": "images/tab/notice-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "images/tab/mine.png",
+        "selectedIconPath": "images/tab/mine-active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

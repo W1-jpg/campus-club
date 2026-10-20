@@ -1,0 +1,20 @@
+/* form-input / form-textarea / picker-box 已在 app.wxss 全局定义 */
+.steps { display:flex; align-items:center; justify-content:center; gap:0; margin-bottom:24rpx; padding:0 20rpx; }
+.step { display:flex; flex-direction:column; align-items:center; gap:6rpx; }
+.step-num { width:48rpx; height:48rpx; border-radius:50%; background:#E5E6EB; color:#fff; display:flex; align-items:center; justify-content:center; font-size:24rpx; font-weight:700; }
+.step.active .step-num { background:var(--color-primary); }
+.step-label { font-size:20rpx; color:var(--text-tertiary); }
+.step.active .step-label { color:var(--color-primary); font-weight:600; }
+.step-line { flex:1; height:2rpx; background:#E5E6EB; margin:0 8rpx; margin-bottom:20rpx; }
+
+.form-group { margin-bottom:24rpx; }
+.form-label { font-size:28rpx; font-weight:600; color:var(--text-primary); display:block; margin-bottom:12rpx; }
+
+.upload-row { display:flex; flex-wrap:wrap; gap:16rpx; }
+.upload-preview { width:160rpx; height:160rpx; border-radius:var(--radius-sm); overflow:hidden; position:relative; }
+.upload-preview image { width:100%; height:100%; }
+.upload-preview__remove { position:absolute; top:0; right:0; width:40rpx; height:40rpx; background:rgba(0,0,0,0.5); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28rpx; border-radius:0 0 0 12rpx; }
+.upload-btn { width:160rpx; height:160rpx; border-radius:var(--radius-sm); border:2rpx dashed #ccc; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6rpx; }
+
+.upload-file-item { display:flex; align-items:center; padding:16rpx 20rpx; background:var(--bg-page); border-radius:var(--radius-sm); margin-bottom:8rpx; }
+.upload-file-item__remove { font-size:24rpx; color:var(--color-danger); flex-shrink:0; margin-left:16rpx; }

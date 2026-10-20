@@ -1,0 +1,96 @@
+# =====================================================================
+# 配置示例
+# ---------------------------------------------------------------------
+# 使用方法：复制本文件为同目录下的 application.yml，再填入真实值
+#     cp application.yml.example application.yml
+#
+# application.yml 已加入 .gitignore，不会提交到仓库；
+# 请勿把数据库口令、JWT 密钥、微信/支付宝私钥提交进 Git。
+# =====================================================================
+
+server:
+  port: 8080
+  tomcat:
+    uri-encoding: UTF-8
+    max-swallow-size: -1
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
+      enabled: true
+  datasource:
+    url: jdbc:mysql://localhost:3306/23db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: your_db_username
+    password: your_db_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: true
+      idle-timeout: 300000
+      pool-name: CampusClubHikariCP
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  logging:
+    level:
+      root: INFO
+      com.campus: DEBUG
+      org.hibernate: WARN
+      org.springframework.web: INFO
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+
+# JWT 配置（secret 请使用足够长的随机字符串，切勿使用示例值）
+jwt:
+  secret: change_me_to_a_long_random_secret_at_least_64_chars
+  expiration: 86400000
+  header: Authorization
+  prefix: Bearer
+  refresh-expiration: 604800000
+
+# 文件上传
+file:
+  upload:
+    path: D:/campus_club/uploads/
+    access-path: /uploads/**
+    allowed-types: .pdf,.doc,.docx,.zip,.rar,.jpg,.png,.jpeg
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+
+# 微信小程序（在微信公众平台获取）
+wechat:
+  app-id: your_wechat_appid
+  app-secret: your_wechat_appsecret
+
+# 支付宝沙箱/正式环境（私钥切勿泄露）
+alipay:
+  app-id: your_alipay_appid
+  private-key: your_alipay_private_key
+  alipay-public-key: your_alipay_public_key
+  gateway: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+  notify-url: https://your-domain.example/api/alipay/notify
+  return-url: http://localhost:5173/enterprise-home
+
+app:
+  name: 校园社团成果展示与孵化系统
+  version: 1.0.0
+  base-url: http://localhost:8080

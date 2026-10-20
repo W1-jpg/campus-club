@@ -1,0 +1,232 @@
+/* ============ 登录页 ============ */
+.login-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1a2642 0%, #1e3a5f 100%);
+  padding: 80rpx 40rpx 60rpx;
+}
+
+.login-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 0 40rpx;
+}
+.login-hero__logo {
+  width: 100rpx;
+  height: 100rpx;
+  background: rgba(255,255,255,0.12);
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  margin-bottom: 20rpx;
+}
+.login-hero__title {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 2rpx;
+}
+.login-hero__sub {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.5);
+  margin-top: 8rpx;
+}
+
+/* 表单卡片 */
+.login-card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 48rpx 40rpx;
+  box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.15);
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+.form-header__title {
+  font-size: 36rpx;
+  font-weight: 800;
+  color: #1a1a2e;
+  display: block;
+}
+.form-header__desc {
+  font-size: 26rpx;
+  color: #8F959E;
+  margin-top: 8rpx;
+  display: block;
+}
+
+/* 角色选择 */
+.role-tabs {
+  display: flex;
+  gap: 6rpx;
+  background: #F3F4F6;
+  border-radius: 16rpx;
+  padding: 6rpx;
+  margin-bottom: 36rpx;
+}
+.role-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+  padding: 16rpx 4rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  color: #8F959E;
+  font-weight: 500;
+  transition: all 0.25s;
+}
+.role-tab--active {
+  background: #fff;
+  color: #1a1a2e;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.06);
+}
+.role-tab__dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+}
+.role-tab__dot--student { background: #52C41A; }
+.role-tab__dot--teacher { background: #2B5AED; }
+.role-tab__dot--expert { background: #7C5CFC; }
+.role-tab__dot--enterprise { background: #06B6D4; }
+
+/* 微信登录 */
+.wx-login-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+}
+.avatar-btn {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  padding: 0;
+  background: #F0F2F5;
+  border: 4rpx dashed #D1D5DB;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.avatar-btn::after { border: none; }
+.avatar-preview {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+}
+.avatar-hint {
+  font-size: 18rpx;
+  color: #8F959E;
+  position: absolute;
+  bottom: 8rpx;
+}
+
+.nickname-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.nickname-label {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.nickname-input {
+  flex: 1;
+  height: 72rpx;
+  background: #F5F7FA;
+  border-radius: 12rpx;
+  padding: 0 20rpx;
+  font-size: 28rpx;
+}
+
+.wx-login-btn {
+  width: 100%;
+  height: 88rpx;
+  background: linear-gradient(135deg, #07C160, #06AD56);
+  color: #fff;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wx-login-btn::after { border: none; }
+.wx-login-btn:active { opacity: 0.85; }
+
+.agreement {
+  font-size: 22rpx;
+  color: #8F959E;
+  text-align: center;
+}
+.agreement-link { color: var(--color-primary); }
+
+/* 分隔线 */
+.divider-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 32rpx 0 24rpx;
+}
+.divider-row__line {
+  flex: 1;
+  height: 1rpx;
+  background: #E5E7EB;
+}
+.divider-row__text {
+  font-size: 22rpx;
+  color: #8F959E;
+}
+
+.pwd-toggle {
+  text-align: center;
+  font-size: 26rpx;
+  color: var(--color-primary);
+  padding: 12rpx 0;
+}
+.pwd-arrow {
+  font-size: 20rpx;
+  margin-left: 6rpx;
+}
+
+/* 账号密码表单 */
+.pwd-form, .register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+.form-input {
+  height: 80rpx;
+  background: #F5F7FA;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  border: 2rpx solid transparent;
+}
+.form-input:focus {
+  border-color: var(--color-primary);
+  background: #fff;
+}
+
+.pwd-options {
+  padding: 4rpx 0;
+}
+
+.pwd-foot {
+  text-align: center;
+  font-size: 26rpx;
+  color: var(--color-primary);
+  padding: 16rpx 0;
+}

@@ -1,0 +1,67 @@
+<!-- 成果上传 -->
+<view class="container">
+  <view class="page-hero">
+    <view class="page-hero__title">成果上传</view>
+    <view class="page-hero__subtitle">分享你的社团成果，展示才华与创新</view>
+  </view>
+
+  <!-- 步骤 -->
+  <view class="steps">
+    <view class="step active"><text class="step-num">1</text><text class="step-label">填写信息</text></view>
+    <view class="step-line"></view>
+    <view class="step"><text class="step-num">2</text><text class="step-label">上传文件</text></view>
+    <view class="step-line"></view>
+    <view class="step"><text class="step-num">3</text><text class="step-label">提交审核</text></view>
+  </view>
+
+  <view class="card">
+    <view class="form-group">
+      <text class="form-label">成果名称 *</text>
+      <input class="form-input" placeholder="请输入成果名称" value="{{form.title}}" bindinput="onFieldInput" data-field="title"/>
+    </view>
+    <view class="form-group">
+      <text class="form-label">成果分类 *</text>
+      <picker mode="selector" range="{{typeOptions}}" bindchange="onTypeChange">
+        <view class="picker-box">{{form.type || '请选择分类'}}</view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <text class="form-label">所属社团</text>
+      <input class="form-input" placeholder="社团名称（选填）" value="{{form.community}}" bindinput="onFieldInput" data-field="community"/>
+    </view>
+    <view class="form-group">
+      <text class="form-label">成果描述 *</text>
+      <textarea class="form-textarea" placeholder="描述你的成果..." value="{{form.description}}" bindinput="onFieldInput" data-field="description"/>
+    </view>
+
+    <!-- 图片上传 -->
+    <view class="form-group">
+      <text class="form-label">上传封面/图片</text>
+      <view class="upload-row">
+        <view wx:for="{{images}}" wx:key="*this" class="upload-preview">
+          <image src="{{item}}" mode="aspectFill"/>
+          <view class="upload-preview__remove" data-index="{{index}}" bindtap="removeImage">×</view>
+        </view>
+        <view wx:if="{{images.length < 6}}" class="upload-btn" bindtap="chooseImage">
+          <text style="font-size:48rpx;color:#ccc">+</text>
+          <text style="font-size:22rpx;color:#ccc">添加图片</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 文件上传 -->
+    <view class="form-group">
+      <text class="form-label">上传文件</text>
+      <view class="file-list">
+        <view wx:for="{{files}}" wx:key="index" class="upload-file-item">
+          <text class="text-ellipsis" style="flex:1">📄 {{item.name}}</text>
+          <text class="upload-file-item__remove" data-index="{{index}}" bindtap="removeFile">删除</text>
+        </view>
+      </view>
+      <button class="btn-outline btn-sm" style="margin-top:12rpx" bindtap="chooseFile">+ 选择文件</button>
+    </view>
+  </view>
+
+  <button class="btn-primary" bindtap="submitForm" loading="{{submitting}}" style="margin-top:24rpx">提交上传</button>
+  <button class="btn-outline" style="margin-top:12rpx;color:var(--text-tertiary);border-color:#ccc" bindtap="resetForm">重置表单</button>
+</view>

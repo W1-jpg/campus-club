@@ -1,0 +1,51 @@
+/* ============ 成果市场 ============ */
+.result-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  justify-content: space-between;
+}
+.result-card {
+  width: calc(50% - 8rpx);
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+  margin-bottom: 4rpx;
+}
+.result-card:active { transform: scale(0.98); }
+.result-card__cover {
+  position: relative;
+  width: 100%;
+  height: 260rpx;
+  overflow: hidden;
+  background: #E8ECF1;
+}
+.result-card__cover image { width: 100%; height: 100%; }
+.result-card__cover-placeholder {
+  width: 100%; height: 100%;
+  background: linear-gradient(135deg, #E8ECF1 0%, #D1D5DB 100%);
+}
+.result-card__type {
+  position: absolute; top: 12rpx; right: 12rpx;
+  background: rgba(0,0,0,0.5); color: #fff;
+  padding: 4rpx 14rpx; border-radius: 100rpx; font-size: 20rpx;
+}
+.result-card__new {
+  position: absolute; top: 12rpx; left: 12rpx;
+  background: var(--color-danger); color: #fff;
+  padding: 4rpx 12rpx; border-radius: 100rpx; font-size: 18rpx; font-weight: 700;
+}
+.result-card__body { padding: 20rpx; display: flex; flex-direction: column; gap: 8rpx; }
+.result-card__title {
+  font-size: 28rpx; font-weight: 600; color: var(--text-primary);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;
+}
+.result-card__college { font-size: 22rpx; color: var(--text-tertiary); }
+.result-card__score-row { display: flex; align-items: baseline; gap: 4rpx; }
+.result-card__score { font-size: 40rpx; font-weight: 700; color: var(--color-score); line-height: 1; }
+.result-card__score-unit { font-size: 22rpx; color: var(--color-score); }
+.result-card__stats {
+  display: flex; gap: 24rpx; font-size: 22rpx; color: var(--text-tertiary);
+  padding-top: 12rpx; border-top: 1rpx solid var(--border-color);
+}

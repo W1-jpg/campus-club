@@ -1,0 +1,57 @@
+<!-- 我的成果 -->
+<view class="container">
+  <view class="page-hero">
+    <view class="page-hero__title">我的成果</view>
+    <view class="page-hero__subtitle">管理你上传的社团成果，跟踪评分与孵化状态</view>
+  </view>
+
+  <button class="btn-primary" style="margin-bottom:24rpx" bindtap="goUpload">+ 上传新成果</button>
+
+  <view class="search-bar" style="margin-bottom:20rpx">
+    <text class="search-bar__icon">🔍</text>
+    <input class="search-bar__input" placeholder="搜索我的成果..." value="{{keyword}}" bindinput="onSearch"/>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-box">
+    <text style="font-size:60rpx">⏳</text>
+    <text class="loading-box__text">加载中...</text>
+  </view>
+
+  <view wx:elif="{{filteredList.length > 0}}">
+    <view wx:for="{{filteredList}}" wx:key="id" class="card">
+      <view style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12rpx">
+        <text class="text-clamp-2" style="flex:1;font-size:30rpx;font-weight:600">{{item.title}}</text>
+        <text class="tag" style="flex-shrink:0;margin-left:16rpx;{{item._statusStyle}}">{{item._statusText}}</text>
+      </view>
+      <text style="font-size:24rpx;color:var(--text-tertiary)">{{item.type}} · {{item._date}}</text>
+      <text class="text-clamp-2" style="font-size:26rpx;color:var(--text-secondary);margin:12rpx 0" wx:if="{{item.description}}">{{item.description}}</text>
+      <view style="display:flex;gap:12rpx;margin-top:16rpx">
+        <button class="btn-outline btn-sm" data-id="{{item.id}}" bindtap="goDetail">查看</button>
+        <button class="btn-outline btn-sm" data-item="{{item}}" bindtap="openEdit">修改</button>
+        <button class="btn-danger btn-sm" data-id="{{item.id}}" bindtap="deleteItem">删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="empty-state">
+    <text class="empty-state__icon">📋</text>
+    <text class="empty-state__text">暂无成果</text>
+    <button class="btn-primary btn-sm" style="margin-top:24rpx" bindtap="goUpload">去上传</button>
+  </view>
+</view>
+
+<!-- 编辑弹窗 -->
+<view wx:if="{{showEdit}}" class="modal-mask" bindtap="closeEdit">
+  <view class="modal-card" catchtap="">
+    <text style="font-size:32rpx;font-weight:700;margin-bottom:24rpx;display:block">修改成果</text>
+    <input class="form-input" style="margin-bottom:16rpx" placeholder="成果名称" value="{{editForm.title}}" bindinput="onEditInput" data-field="title"/>
+    <picker mode="selector" range="{{editTypes}}" bindchange="onEditType">
+      <view class="picker-box" style="margin-bottom:16rpx">{{editForm.type || '选择分类'}}</view>
+    </picker>
+    <textarea class="form-textarea" style="height:150rpx;margin-bottom:20rpx" placeholder="成果描述" value="{{editForm.description}}" bindinput="onEditInput" data-field="description"/>
+    <view style="display:flex;gap:16rpx">
+      <button class="btn-outline btn-sm" style="flex:1" bindtap="closeEdit">取消</button>
+      <button class="btn-primary btn-sm" style="flex:1" bindtap="submitEdit">保存</button>
+    </view>
+  </view>
+</view>

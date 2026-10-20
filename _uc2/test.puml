@@ -1,0 +1,52 @@
+@startuml
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName "SimSun"
+skinparam defaultFontSize 14
+skinparam dpi 150
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
+}
+actor "用户" as User
+actor "管理员" as Admin
+actor "教师" as Teacher
+actor "企业" as Company
+rectangle "校园社团成果展示与孵化系统" {
+  usecase "成果浏览" as UC1
+  usecase "成果上传" as UC2
+  usecase "成果搜索" as UC3
+  usecase "资源申请" as UC4
+  usecase "通知发布" as UC5
+  usecase "用户管理" as UC6
+  usecase "成果管理" as UC7
+  usecase "成果互动" as UC8
+  usecase "成果评分" as UC9
+  usecase "资源审批" as UC10
+}
+User -- UC1
+User -- UC2
+User -- UC3
+User -- UC4
+User -- UC8
+Admin -- UC5
+Admin -- UC6
+Admin -- UC7
+Teacher -- UC8
+Teacher -- UC9
+Company -- UC10
+UC2 ..> UC9 : <<include>>
+UC4 ..> UC10 : <<include>>
+@enduml

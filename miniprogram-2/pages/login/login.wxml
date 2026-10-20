@@ -1,0 +1,123 @@
+<!-- 登录/注册页 -->
+<view class="login-page">
+  <!-- 顶部品牌区 -->
+  <view class="login-hero">
+    <view class="login-hero__logo">🎓</view>
+    <view class="login-hero__title">校园社团成果</view>
+    <view class="login-hero__sub">展示与孵化平台</view>
+  </view>
+
+  <!-- 表单卡片 -->
+  <view class="login-card">
+    <!-- 欢迎语 -->
+    <view class="form-header">
+      <text class="form-header__title">欢迎回来 👋</text>
+      <text class="form-header__desc">选择身份并登录您的账号</text>
+    </view>
+
+    <!-- 角色选择 -->
+    <view class="role-tabs">
+      <view
+        wx:for="{{roleList}}"
+        wx:key="code"
+        class="role-tab {{userType === item.code ? 'role-tab--active' : ''}}"
+        data-type="{{item.code}}"
+        bindtap="switchRole"
+      >
+        <view class="role-tab__dot role-tab__dot--{{item.code}}"></view>
+        <text>{{item.name}}</text>
+      </view>
+    </view>
+
+    <!-- 微信一键登录区 -->
+    <view class="wx-login-area">
+      <!-- 头像选择 -->
+      <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+        <image
+          class="avatar-preview"
+          src="{{avatarUrl}}"
+          mode="aspectFill"
+        />
+        <text class="avatar-hint">点击选择头像</text>
+      </button>
+
+      <!-- 昵称输入 -->
+      <view class="nickname-row">
+        <text class="nickname-label">昵称</text>
+        <input
+          type="nickname"
+          class="nickname-input"
+          placeholder="请输入昵称"
+          value="{{nickName}}"
+          bindinput="onNickInput"
+        />
+      </view>
+
+      <!-- 微信登录按钮 -->
+      <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{loading}}">
+        <text wx:if="{{!loading}}">微信一键登录</text>
+        <text wx:else>登录中...</text>
+      </button>
+
+      <!-- 协议 -->
+      <view class="agreement">
+        <text>登录即表示同意 </text>
+        <text class="agreement-link">服务协议</text>
+        <text> 和 </text>
+        <text class="agreement-link">隐私政策</text>
+      </view>
+    </view>
+
+    <!-- 分隔线 + 账号密码登录 -->
+    <view class="divider-row">
+      <view class="divider-row__line"></view>
+      <text class="divider-row__text">其他登录方式</text>
+      <view class="divider-row__line"></view>
+    </view>
+
+    <view class="pwd-toggle" bindtap="togglePwdLogin">
+      <text>账号密码登录</text>
+      <text class="pwd-arrow">{{showPwdLogin ? '▲' : '▼'}}</text>
+    </view>
+
+    <!-- 账号密码表单 -->
+    <view wx:if="{{showPwdLogin}}" class="pwd-form">
+      <input
+        class="form-input"
+        placeholder="请输入用户名"
+        value="{{username}}"
+        bindinput="onUsernameInput"
+      />
+      <input
+        class="form-input"
+        type="text"
+        password="{{!showPwd}}"
+        placeholder="请输入密码"
+        value="{{password}}"
+        bindinput="onPwdInput"
+      />
+      <view class="pwd-options">
+        <checkbox checked="{{rememberPwd}}" bindtap="toggleRemember">记住密码</checkbox>
+      </view>
+      <button class="btn-primary" bindtap="handlePwdLogin" loading="{{pwdLoading}}">
+        登 录
+      </button>
+      <view class="pwd-foot">
+        <text bindtap="switchToRegister">还没有账号？立即注册</text>
+      </view>
+    </view>
+
+    <!-- 注册表单 -->
+    <view wx:if="{{showRegister}}" class="register-form">
+      <input class="form-input" placeholder="用户名" value="{{regUsername}}" bindinput="onRegInput" data-field="regUsername" />
+      <input class="form-input" type="text" password placeholder="密码" value="{{regPassword}}" bindinput="onRegInput" data-field="regPassword" />
+      <input class="form-input" placeholder="真实姓名" value="{{regRealName}}" bindinput="onRegInput" data-field="regRealName" />
+      <input class="form-input" placeholder="学号/工号" value="{{regId}}" bindinput="onRegInput" data-field="regId" />
+      <input class="form-input" placeholder="学院" value="{{regCollege}}" bindinput="onRegInput" data-field="regCollege" />
+      <button class="btn-primary" bindtap="handleRegister" loading="{{regLoading}}">注 册</button>
+      <view class="pwd-foot">
+        <text bindtap="switchToRegister">已有账号？去登录</text>
+      </view>
+    </view>
+  </view>
+</view>

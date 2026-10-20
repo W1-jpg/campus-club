@@ -1,0 +1,44 @@
+<!-- 获奖上传 -->
+<view class="container">
+  <view class="page-hero">
+    <view class="page-hero__title">获奖上传</view>
+    <view class="page-hero__subtitle">记录竞赛获奖，展示团队荣誉</view>
+  </view>
+
+  <view class="card">
+    <view class="form-group">
+      <text class="form-label">奖项名称 *</text>
+      <input class="form-input" placeholder="请输入奖项名称" value="{{form.title}}" bindinput="onFieldInput" data-field="title"/>
+    </view>
+    <view class="form-group">
+      <text class="form-label">获奖等级 *</text>
+      <picker mode="selector" range="{{levelOptions}}" range-key="value" bindchange="onLevelChange">
+        <view class="picker-box">{{form.level ? (form._levelEmoji + ' ' + form.level) : '请选择等级'}}</view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <text class="form-label">获奖时间 *</text>
+      <picker mode="date" bindchange="onDateChange">
+        <view class="picker-box">{{form.awardTime || '请选择日期'}}</view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <text class="form-label">获奖描述</text>
+      <textarea class="form-textarea" placeholder="描述获奖情况..." value="{{form.description}}" bindinput="onFieldInput" data-field="description"/>
+    </view>
+    <view class="form-group">
+      <text class="form-label">获奖证书/照片</text>
+      <view class="upload-row">
+        <view wx:for="{{images}}" wx:key="*this" class="upload-preview">
+          <image src="{{item}}" mode="aspectFill"/>
+          <view class="upload-preview__remove" data-index="{{index}}" bindtap="removeImage">×</view>
+        </view>
+        <view wx:if="{{images.length < 9}}" class="upload-btn" bindtap="chooseImage">
+          <text style="font-size:48rpx;color:#ccc">+</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary" style="margin-top:24rpx" bindtap="submitForm" loading="{{submitting}}">提交上传</button>
+</view>

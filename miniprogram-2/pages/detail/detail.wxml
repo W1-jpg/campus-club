@@ -1,0 +1,127 @@
+<!-- 成果详情 -->
+<view wx:if="{{result}}" class="detail-page">
+  <!-- 封面大图 -->
+  <view class="detail-cover">
+    <image src="{{result.cover || ''}}" mode="aspectFill" />
+    <view class="detail-cover__score" wx:if="{{result.score}}">
+      <text class="score-big">{{result.score}}</text>
+      <text class="score-unit">分</text>
+    </view>
+  </view>
+
+  <!-- 信息区 -->
+  <view class="container">
+    <text class="detail-title">{{result.title}}</text>
+    <view class="detail-type-row">
+      <text class="tag tag-primary">{{result.type}}</text>
+      <text class="detail-college">{{result.college || result.community || '校园社团'}}</text>
+    </view>
+
+    <!-- 评分 + 星级 -->
+    <view wx:if="{{result.score}}" class="score-bar">
+      <view class="score-bar__main">
+        <text class="score-bar__num">{{result.score}}</text>
+        <text class="score-bar__label">综合评分</text>
+      </view>
+      <view class="score-bar__stars">
+        <text wx:for="{{starIndices}}" wx:key="*this" class="star {{item <= scoreStars ? 'filled' : ''}}">★</text>
+      </view>
+    </view>
+
+    <!-- 元信息 -->
+    <view class="meta-grid">
+      <view class="meta-cell">
+        <text class="meta-label">上传时间</text>
+        <text class="meta-value">{{result._date}}</text>
+      </view>
+      <view class="meta-cell">
+        <text class="meta-label">上传者</text>
+        <text class="meta-value">ID: {{result.studentId}}</text>
+      </view>
+      <view class="meta-cell">
+        <text class="meta-label">浏览量</text>
+        <text class="meta-value">👁️ {{result.viewCount || 0}}</text>
+      </view>
+      <view class="meta-cell">
+        <text class="meta-label">互动</text>
+        <text class="meta-value">👍 {{result.likeCount || 0}} · 💬 {{commentCount}}</text>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-bar">
+      <button class="btn-primary" style="flex:1" bindtap="handleLike">
+        {{result.isLiked ? '❤️ 已赞' : '🤍 点赞'}} ({{result.likeCount || 0}})
+      </button>
+      <button class="btn-outline" bindtap="handleShare" style="width:88rpx;padding:0">📤</button>
+    </view>
+
+    <!-- Tab 切换 -->
+    <view class="tab-bar">
+      <view wx:for="{{tabs}}" wx:key="key" class="tab-item {{activeTab === item.key ? 'active' : ''}}" data-key="{{item.key}}" bindtap="switchTab">{{item.label}}</view>
+    </view>
+
+    <!-- Tab 内容 -->
+    <view wx:if="{{activeTab === 'detail'}}" class="tab-content">
+      <view class="info-section">
+        <text class="info-section__title">成果描述</text>
+        <text class="info-section__text">{{result.description || '暂无描述'}}</text>
+      </view>
+      <view wx:if="{{result.background}}" class="info-section">
+        <text class="info-section__title">项目背景</text>
+        <text class="info-section__text">{{result.background}}</text>
+      </view>
+      <view wx:if="{{result.process}}" class="info-section">
+        <text class="info-section__title">实施过程</text>
+        <text class="info-section__text">{{result.process}}</text>
+      </view>
+      <view wx:if="{{result.innovation}}" class="info-section">
+        <text class="info-section__title">创新点</text>
+        <text class="info-section__text">{{result.innovation}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 'files'}}" class="tab-content">
+      <view wx:if="{{files.length > 0}}" class="file-list">
+        <view wx:for="{{files}}" wx:key="id" class="file-item" bindtap="downloadFile" data-url="{{item.url || item.fileUrl}}" data-name="{{item.name || item.fileName}}">
+          <text style="font-size:36rpx;margin-right:16rpx">📄</text>
+          <text style="flex:1" class="text-ellipsis">{{item.name || item.fileName || '文件'}}</text>
+          <text style="font-size:24rpx;color:var(--color-primary)">下载</text>
+        </view>
+      </view>
+      <view wx:else class="empty-state" style="padding:60rpx 0">
+        <text class="empty-state__text">暂无文件</text>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 'comments'}}" class="tab-content">
+      <!-- 评论输入 -->
+      <view class="comment-input">
+        <textarea placeholder="写下你的评论..." value="{{commentText}}" bindinput="onCommentInput" maxlength="500" auto-height />
+        <button class="btn-primary btn-sm" style="margin-top:12rpx;width:160rpx" bindtap="submitComment" loading="{{commentLoading}}">提交</button>
+      </view>
+      <!-- 评论列表 -->
+      <view wx:if="{{comments.length > 0}}" class="comment-list">
+        <view wx:for="{{comments}}" wx:key="id" class="comment-item">
+          <view class="comment-item__avatar">{{item._avatarChar || '?'}}</view>
+          <view class="comment-item__body">
+            <view class="comment-item__header">
+              <text class="comment-item__author">{{item.userType || '用户'}}</text>
+              <text class="comment-item__time">{{item._date}}</text>
+            </view>
+            <text class="comment-item__content">{{item.content}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-state" style="padding:60rpx 0">
+        <text class="empty-state__text">暂无评论，快来发表第一条</text>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 加载中 -->
+<view wx:else class="loading-box" style="padding-top:200rpx">
+  <text style="font-size:60rpx">⏳</text>
+  <text class="loading-box__text">加载详情中...</text>
+</view>

@@ -1,0 +1,145 @@
+/* ============================================
+   设计令牌系统 — 校园社团成果展示与孵化系统
+   玻璃拟态 + 渐变光效主题
+   统一颜色、间距、阴影、圆角、字体、玻璃效果
+   ============================================ */
+
+:root {
+  /* ========== 品牌色彩 ========== */
+  --color-primary: #2B5AED;
+  --color-primary-light: #4E7BF5;
+  --color-primary-lighter: #889DF7;
+  --color-primary-dark: #1A3DB5;
+  --color-primary-bg: #EEF1FE;
+  --color-primary-bg-light: #F5F7FF;
+
+  /* 辅助强调色（渐变光效使用） */
+  --accent-violet: #7C5CFF;
+  --accent-cyan: #22D3EE;
+  --accent-pink: #F472B6;
+
+  /* 渐变色（用于标题、横幅、按钮特效） */
+  --gradient-primary: linear-gradient(135deg, #2B5AED 0%, #4E7BF5 100%);
+  --gradient-accent: linear-gradient(135deg, #2B5AED 0%, #667eea 50%, #889DF7 100%);
+  --gradient-hero: linear-gradient(135deg, #1a3a8a 0%, #2B5AED 40%, #4E7BF5 100%);
+  /* 品牌三色渐变：用于标题文字、主按钮、活性指示条 */
+  --gradient-brand: linear-gradient(120deg, #2B5AED 0%, #7C5CFF 52%, #22D3EE 100%);
+  --gradient-brand-soft: linear-gradient(120deg, rgba(43, 90, 237, 0.14), rgba(124, 92, 255, 0.14), rgba(34, 211, 238, 0.14));
+
+  /* ========== 功能色彩 ========== */
+  --color-success: #52C41A;
+  --color-success-bg: #F0FBE6;
+  --color-success-light: #95DE64;
+
+  --color-warning: #FAAD14;
+  --color-warning-bg: #FFF8E6;
+  --color-warning-light: #FFD666;
+
+  --color-danger: #FF4D4F;
+  --color-danger-bg: #FFF0F0;
+  --color-danger-light: #FF8888;
+
+  --color-info: #1890FF;
+  --color-info-bg: #E8F4FD;
+
+  /* ========== 中性色 ========== */
+  --bg-page: #F4F7FE;
+  --bg-page-2: #EEF2FC;
+  /* 卡片底改为半透明：全站页面自写的 background: var(--bg-card) 也会自动通透 */
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-card-hover: rgba(255, 255, 255, 0.88);
+  --border-color: rgba(43, 90, 237, 0.12);
+  --border-color-light: rgba(43, 90, 237, 0.07);
+
+  --text-primary: #1B2438;
+  --text-secondary: #5A6478;
+  --text-tertiary: #8A93A6;
+  --text-disabled: #B9C0CF;
+  --text-inverse: #FFFFFF;
+
+  /* ========== 玻璃拟态 ========== */
+  /* 卡片/面板的毛玻璃底：半透明白 + blur，叠在渐变光斑背景上 */
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-bg-soft: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-border-strong: rgba(255, 255, 255, 0.9);
+  --glass-blur: blur(18px) saturate(160%);
+  --glass-blur-sm: blur(10px) saturate(150%);
+  /* 顶部高光：模拟玻璃边缘反光 */
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-ring: 0 0 0 1px rgba(43, 90, 237, 0.06);
+
+  /* ========== 间距 ========== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 48px;
+
+  /* ========== 字体 ========== */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-code: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 20px;
+  --font-size-title: 24px;
+  --font-size-h1: 28px;
+
+  --line-height: 1.5715;
+
+  /* ========== 阴影（柔化 + 带品牌色倾向） ========== */
+  --shadow-xs: 0 1px 2px rgba(27, 36, 56, 0.04);
+  --shadow-sm: 0 2px 8px rgba(27, 36, 56, 0.05);
+  --shadow-base: 0 4px 14px rgba(27, 36, 56, 0.06);
+  --shadow-md: 0 8px 24px rgba(43, 90, 237, 0.10);
+  --shadow-lg: 0 14px 38px rgba(43, 90, 237, 0.14);
+  --shadow-xl: 0 22px 56px rgba(43, 90, 237, 0.16);
+  --shadow-xxl: 0 32px 72px rgba(43, 90, 237, 0.20);
+
+  /* 卡片特定阴影 */
+  --shadow-card: 0 6px 22px rgba(43, 90, 237, 0.08), var(--glass-ring);
+  --shadow-card-hover: 0 16px 40px rgba(43, 90, 237, 0.16), 0 0 0 1px rgba(43, 90, 237, 0.10);
+  /* 玻璃卡片专用投影 */
+  --glass-shadow: 0 8px 30px rgba(43, 90, 237, 0.10), var(--glass-highlight);
+  --glass-shadow-hover: 0 20px 48px rgba(43, 90, 237, 0.18), var(--glass-highlight);
+
+  /* ========== 圆角（整体放大，更柔和） ========== */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-base: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-round: 9999px;
+
+  /* ========== 过渡 ========== */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ========== 布局 ========== */
+  --navbar-height: 56px;
+  --content-max-width: 1200px;
+  --content-max-width-wide: 1400px;
+  --sidebar-width: 240px;
+
+  /* ========== Z-Index 层级 ========== */
+  --z-dropdown: 900;
+  --z-sticky: 950;
+  --z-navbar: 1000;
+  --z-dialog: 1050;
+  --z-notification: 1100;
+  --z-tooltip: 1150;
+}
+
+/* ========== 暗色模式预留 ========== */
+/* [data-theme="dark"] { ... } */
