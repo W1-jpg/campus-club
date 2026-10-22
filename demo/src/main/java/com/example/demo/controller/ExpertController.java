@@ -2,6 +2,8 @@ package com.example.demo.controller;
 
 import com.example.demo.config.JwtUser;
 import com.example.demo.util.Result;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,6 +37,16 @@ public class ExpertController {
                             "FROM achievement a LEFT JOIN student_user s ON a.student_id = s.id " +
                             "WHERE a.score > 0 AND (a.expert_score IS NULL OR a.expert_score = 0) " +
                             "ORDER BY a.create_time DESC");
+
+            // 双盲评审：专家端隐藏学生身份，管理员仍可查看
+            if ("expert".equals(user.getUserType())) {
+                for (Map<String, Object> row : rows) {
+                    row.remove("studentId");
+                    row.remove("studentName");
+                    row.remove("college");
+                    row.put("anonymous", true);
+                }
+            }
             return Result.success(rows);
         } catch (Exception e) {
             return Result.error("获取失败");
@@ -84,7 +96,10 @@ public class ExpertController {
             if (!isExpertOrAdmin(user)) return Result.error("没有评审权限");
             Object achievementId = body.get("achievementId");
             Object score = body.get("score");
-            if (achievementId == null || score == null) return Result.error("缺少参数");
+            if (achievementId == null) return Result.error("缺少参数");
+            Integer exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM achievement WHERE id = ?", Integer.class, achievementId);
+            if (exists == null || exists == 0) return Result.error("成果不存在");
 
             Long expertId = user.getId();
             if ("admin".equals(user.getUserType()) && body.get("expertId") != null) {
@@ -95,15 +110,29 @@ public class ExpertController {
             String dimensionScores = body.get("dimensionScores") == null ? "[]" : String.valueOf(body.get("dimensionScores"));
             String reviewType = body.get("reviewType") == null ? "achievement" : String.valueOf(body.get("reviewType"));
 
+            // 多维度评分：服务端按权重计算总分，不直接信任前端总分
+            int finalScore;
+            Integer weighted = calculateWeightedScore(dimensionScores);
+            if (weighted != null) {
+                finalScore = weighted;
+            } else if (score != null) {
+                finalScore = (int) Math.round(Double.parseDouble(String.valueOf(score)));
+            } else {
+                return Result.error("缺少评分");
+            }
+            if (finalScore < 0 || finalScore > 100) return Result.error("评分必须在 0-100 之间");
+
             jdbcTemplate.update(
                     "INSERT INTO expert_reviews (expert_id, achievement_id, score, comment, conclusion, dimension_scores, review_type) " +
                             "VALUES (?,?,?,?,?,?,?)",
-                    expertId, achievementId, score, comment, conclusion, dimensionScores, reviewType);
+                    expertId, achievementId, finalScore, comment, conclusion, dimensionScores, reviewType);
             jdbcTemplate.update(
                     "UPDATE achievement SET expert_score = ?, expert_comment = ?, review_conclusion = ?, " +
                             "dimension_scores = ?, review_status = 2 WHERE id = ?",
-                    score, comment, conclusion, dimensionScores, achievementId);
+                    finalScore, comment, conclusion, dimensionScores, achievementId);
             return Result.success("评审提交成功", null);
+        } catch (IllegalArgumentException e) {
+            return Result.error(e.getMessage() == null ? "评分维度数据不合法" : e.getMessage());
         } catch (Exception e) {
             return Result.error("提交失败");
         }
@@ -179,6 +208,47 @@ public class ExpertController {
             return Result.success("已读", null);
         } catch (Exception e) {
             return Result.error("标记已读失败");
+        }
+    }
+
+    /**
+     * 解析 [{name,weight,score}]，按权重计算 0-100 总分。
+     * 兼容旧数据：如果所有分数都不超过 5，按 5 分制换算成百分制。
+     */
+    private Integer calculateWeightedScore(String json) {
+        if (json == null || json.trim().isEmpty() || "[]".equals(json.trim())) {
+            return null;
+        }
+        try {
+            JsonNode array = new ObjectMapper().readTree(json);
+            if (!array.isArray() || array.size() == 0) {
+                return null;
+            }
+            double weighted = 0;
+            double weightSum = 0;
+            double maxScore = 0;
+            for (JsonNode node : array) {
+                double s = node.path("score").asDouble(-1);
+                double w = node.path("weight").asDouble(0);
+                if (s < 0 || s > 100 || w <= 0) {
+                    throw new IllegalArgumentException("评分维度数据不合法");
+                }
+                weighted += s * w;
+                weightSum += w;
+                maxScore = Math.max(maxScore, s);
+            }
+            if (weightSum <= 0) {
+                return null;
+            }
+            double avg = weighted / weightSum;
+            if (maxScore <= 5) {
+                avg = avg * 20;
+            }
+            return (int) Math.round(avg);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            return null;
         }
     }
 

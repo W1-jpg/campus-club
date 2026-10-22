@@ -27,7 +27,7 @@
               <h3>{{ item.title }}</h3>
               <div class="info-grid">
                 <span><span class="lbl">类型</span> {{ item.type }}</span>
-                <span><span class="lbl">提交人</span> {{ item.studentName || '学生' }}</span>
+                <span><span class="lbl">提交人</span> {{ item.anonymous ? '匿名提交（双盲）' : (item.studentName || '学生') }}</span>
                 <span><span class="lbl">时间</span> {{ formatDate(item.createTime) }}</span>
                 <span><span class="lbl">阶段评分</span> {{ item.score || 0 }}分</span>
               </div>
@@ -55,7 +55,7 @@
           <h3>{{ currentItem.title }}</h3>
           <div class="rd-meta">
             <span>📂 {{ currentItem.type }}</span>
-            <span>👤 {{ currentItem.studentName || '未知' }}</span>
+            <span>👤 {{ currentItem.anonymous ? '匿名提交（双盲评审）' : (currentItem.studentName || '未知') }}</span>
             <span>⭐ 阶段评分 {{ currentItem.score || 0 }} | 孵化 {{ currentItem.incubationScore || 0 }}</span>
           </div>
           <p v-if="currentItem.description">{{ currentItem.description }}</p>
@@ -85,7 +85,10 @@
           <h4>评分维度</h4>
           <div v-for="(dim, i) in achieveDims" :key="i" class="dim-row">
             <span class="dim-label">{{ dim.label }}（权重 {{ dim.weight }}%）</span>
-            <el-rate v-model="dim.score" :max="5" show-score />
+            <div class="dim-input">
+              <el-input-number v-model="dim.score" :min="0" :max="100" :step="1" controls-position="right" style="width: 130px" />
+              <span class="dim-unit">/ 100</span>
+            </div>
           </div>
           <div class="dim-total">综合得分：<b>{{ achTotal }} 分</b></div>
         </div>
@@ -187,7 +190,7 @@ const filteredList = computed(() => {
   if (filterType.value) list = list.filter(i => i.type === filterType.value)
   return list
 })
-const achTotal = computed(() => Math.round(achieveDims.value.reduce((s, d) => s + (d.score / 5) * d.weight, 0)))
+const achTotal = computed(() => Math.round(achieveDims.value.reduce((s, d) => s + (Number(d.score) || 0) * d.weight, 0) / 100))
 const formatDate = (d) => { if(!d) return ''; const t = new Date(d); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}` }
 
 const loadTasks = async () => {
@@ -230,6 +233,10 @@ const openReview = async (item) => {
 }
 const closeDialog = () => { showDialog.value = false; currentItem.value = null }
 const submitReview = async () => {
+  if (achieveDims.value.some(d => d.score === null || d.score === undefined || d.score === '' || d.score < 0 || d.score > 100)) {
+    ElMessage.warning('请为每个评分维度填写 0-100 的分数')
+    return
+  }
   if (!reviewConclusion.value) reviewConclusion.value = 'pass'
   const expertId = localStorage.getItem('expertId') || 1
   try {
@@ -302,6 +309,8 @@ onMounted(() => loadTasks())
 .dim-row { display: flex; align-items: center; justify-content: space-between; padding: var(--spacing-sm) 0; border-bottom: 1px solid var(--border-color-light); }
 .dim-row:last-child { border-bottom: none; }
 .dim-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.dim-input { display: flex; align-items: center; gap: 8px; }
+.dim-unit { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .dim-total { text-align: right; font-size: var(--font-size-lg); color: var(--text-primary); margin-top: var(--spacing-md); padding-top: var(--spacing-sm); border-top: 2px solid var(--border-color); }
 
 /* 详情弹窗 */

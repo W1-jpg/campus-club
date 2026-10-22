@@ -40,7 +40,7 @@
             <span class="c-label">评语：</span>{{ item.comment }}
           </div>
           <div class="history-card__dims" v-if="item.dimension_scores">
-            <span v-for="(d, i) in parseDims(item.dimension_scores)" :key="i" class="dim-chip">{{ d.name }}: {{ d.score }}/5</span>
+            <span v-for="(d, i) in parseDims(item.dimension_scores)" :key="i" class="dim-chip">{{ d.name }}: {{ d.score }}</span>
           </div>
         </div>
       </div>
