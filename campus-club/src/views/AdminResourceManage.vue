@@ -89,7 +89,8 @@ const saveResource = async () => {
   try {
     const fd = new FormData(); fd.append('title', form.value.title); fd.append('type', form.value.type); fd.append('description', form.value.description); fd.append('provider', form.value.provider)
     if (selectedFile.value) fd.append('resourceFile', selectedFile.value)
-    const res = await request({ url: isAdd.value ? '/api/admin/resources' : '/api/admin/resources/' + form.value.id, method: isAdd.value ? 'post' : 'put', data: fd, headers: { 'Content-Type': 'multipart/form-data' } })
+    // 不要手动写死 Content-Type，交给浏览器生成带 boundary 的 multipart/form-data
+    const res = await request({ url: isAdd.value ? '/api/admin/resources' : '/api/admin/resources/' + form.value.id, method: isAdd.value ? 'post' : 'put', data: fd })
     if (res.code === 200) { ElMessage.success(isAdd.value ? '添加成功' : '编辑成功'); dialogVisible.value = false; getResources() } else ElMessage.error(res.msg || '操作失败')
   } catch { ElMessage.error('操作失败') }
 }

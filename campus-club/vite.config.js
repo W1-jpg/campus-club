@@ -39,6 +39,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // M5：管理端走 Spring Boot
+      '/api/admin': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/alipay': {
         target: 'http://localhost:8080',
         changeOrigin: true,
