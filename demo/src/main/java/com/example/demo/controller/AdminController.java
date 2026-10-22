@@ -86,7 +86,7 @@ public class AdminController {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT * FROM student_user" + where + " LIMIT ? OFFSET ?", listParams.toArray());
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("students", rows);
+            data.put("students", stripPasswords(rows));
             data.put("total", total);
             return Result.success(data);
         } catch (Exception e) {
@@ -166,7 +166,7 @@ public class AdminController {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT * FROM teacher_user" + where + " LIMIT ? OFFSET ?", listParams.toArray());
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("teachers", rows);
+            data.put("teachers", stripPasswords(rows));
             data.put("total", total);
             return Result.success(data);
         } catch (Exception e) {
@@ -523,7 +523,7 @@ public class AdminController {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT * FROM expert_user" + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?", listParams.toArray());
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("experts", rows);
+            data.put("experts", stripPasswords(rows));
             data.put("total", total);
             return Result.success(data);
         } catch (Exception e) {
@@ -597,7 +597,7 @@ public class AdminController {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT * FROM enterprise_user" + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?", listParams.toArray());
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("enterprises", rows);
+            data.put("enterprises", stripPasswords(rows));
             data.put("total", total);
             return Result.success(data);
         } catch (Exception e) {
@@ -754,6 +754,14 @@ public class AdminController {
 
     private boolean isAdmin(JwtUser user) {
         return user != null && "admin".equals(user.getUserType());
+    }
+
+    /** 列表不返回密码哈希 */
+    private List<Map<String, Object>> stripPasswords(List<Map<String, Object>> rows) {
+        for (Map<String, Object> row : rows) {
+            row.remove("password");
+        }
+        return rows;
     }
 
     private int count(String sql, Object... params) {
