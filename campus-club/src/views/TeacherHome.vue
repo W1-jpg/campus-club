@@ -55,7 +55,6 @@ const entrances = [
   { icon: '📢', label: '系统通知', path: '/系统通知管理' },
   { icon: '⭐', label: '成果评分', path: '/成果评分' },
   { icon: '🚀', label: '成果孵化', path: '/成果孵化' },
-  { icon: '🤝', label: '资源对接', path: '/资源对接' },
   { icon: '🏆', label: '获奖情况', path: '/获奖情况管理' },
 ]
 

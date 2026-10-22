@@ -18,7 +18,6 @@ export const navConfig = {
     { label: '系统通知', path: '/系统通知管理', icon: 'Bell' },
     { label: '成果评分', path: '/成果评分', icon: 'EditPen' },
     { label: '成果孵化', path: '/成果孵化', icon: 'TrendCharts' },
-    { label: '资源对接', path: '/资源对接', icon: 'Connection' },
     { label: '获奖情况', path: '/获奖情况管理', icon: 'Trophy' },
     { label: '数据可视化', path: '/数据可视化', icon: 'DataAnalysis' },
   ],

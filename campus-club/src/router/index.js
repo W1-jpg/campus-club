@@ -27,7 +27,6 @@ const TeacherHome = () => import('../views/TeacherHome.vue')
 const TeacherNoticeManage = () => import('../views/TeacherNoticeManage.vue')
 const AchievementScoring = () => import('../views/AchievementScoring.vue')
 const AchievementIncubation = () => import('../views/AchievementIncubation.vue')
-const ResourceMatching = () => import('../views/ResourceMatching.vue')
 const TeacherAwardManage = () => import('../views/TeacherAwardManage.vue')
 
 // 管理员端页面
@@ -221,14 +220,6 @@ const routes = [
         name: 'AchievementIncubation',
         component: AchievementIncubation,
         meta: { title: '成果孵化', requiresAuth: true, userType: 'teacher' }
-    },
-    // 5. 资源对接
-    {
-        path: '/resource-matching',
-        alias: '/资源对接',
-        name: 'ResourceMatching',
-        component: ResourceMatching,
-        meta: { title: '资源对接', requiresAuth: true, userType: 'teacher' }
     },
     // 7. 获奖情况管理
     {
