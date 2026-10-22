@@ -26,6 +26,19 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // M6–M8：专家、通知、可视化走 Spring Boot
+      '/api/expert': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/notice': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/visualization': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/alipay': {
         target: 'http://localhost:8080',
         changeOrigin: true,
