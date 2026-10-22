@@ -179,7 +179,7 @@ const routes = [
         alias: '/成果详情/:id',
         name: 'ResultDetail',
         component: ResultDetail,
-        meta: { title: '成果详情', requiresAuth: true, userType: 'student' },
+        meta: { title: '成果详情', requiresAuth: true, userTypes: ['student', 'teacher', 'admin', 'expert', 'enterprise'] },
         props: true
     },
     // ==================== 教师端核心路由 ====================
