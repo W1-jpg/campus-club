@@ -65,6 +65,7 @@
 
           <div class="result-actions">
             <el-button :type="result.isLiked ? 'danger' : 'default'" :icon="result.isLiked ? 'el-icon-thumb' : 'el-icon-thumb-outline'" @click="likeResult" :class="{ 'liked': result.isLiked }" class="like-button">{{ result.isLiked ? '已点赞' : '点赞' }} ({{ result.likeCount }})</el-button>
+            <el-button v-if="result.reviewStatus === 2 && userType === 'student'" @click="appealReview">申请复核</el-button>
           </div>
         </div>
       </el-card>
@@ -110,7 +111,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import PageLayout from '../components/PageLayout.vue'
 
@@ -155,6 +156,23 @@ const incrementView = async () => {
   try {
     await request({ url: `/api/result/view/${route.params.id}`, method: 'post' })
   } catch (e) { /* 浏览量统计失败不影响浏览 */ }
+}
+
+const appealReview = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写申请复核的理由', '申请复核', {
+      inputType: 'textarea',
+      inputPlaceholder: '例如：认为评审分数与成果实际水平不符，理由如下……',
+      confirmButtonText: '提交',
+      cancelButtonText: '取消',
+      inputValidator: (v) => (v && v.trim() ? true : '请填写复核理由')
+    })
+    const res = await request.post('/api/result/appeal', { achievementId: result.value.id, reason: value.trim() })
+    if (res.code === 200) ElMessage.success('复核申请已提交')
+    else ElMessage.error(res.msg || '提交失败')
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e.msg || '提交失败')
+  }
 }
 
 const likeResult = async () => {

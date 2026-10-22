@@ -94,6 +94,13 @@
         <input type="number" v-model="scoreForm.score" min="0" max="100" placeholder="请输入评分" />
       </div>
       <div class="form-group">
+        <label>评语模板</label>
+        <select v-model="selectedTemplate" class="template-select" @change="applyTemplate">
+          <option value="">选择常用评语快速填入</option>
+          <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.content }}</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label>评语</label>
         <textarea v-model="scoreForm.comment" placeholder="请输入评语" rows="4"></textarea>
       </div>
@@ -180,6 +187,15 @@ const scoreForm = ref({
   score: '',
   comment: ''
 })
+const templates = ref([])
+const selectedTemplate = ref('')
+const loadTemplates = async () => {
+  try { const res = await request.get('/api/teacher/templates'); if (res.code === 200) templates.value = res.data || [] } catch { /* 无模板时忽略 */ }
+}
+const applyTemplate = (id) => {
+  const t = templates.value.find(item => item.id === id)
+  if (t) scoreForm.value.comment = t.content
+}
 
 const formatTime = (time) => {
   if (!time) return ''
@@ -279,6 +295,8 @@ const closeDetailDialog = () => {
 const openScoreDialog = (item) => {
   currentAchievement.value = item
   scoreForm.value = { score: '', comment: '' }
+  selectedTemplate.value = ''
+  loadTemplates()
   showScoreDialog.value = true
 }
 
@@ -593,7 +611,8 @@ onMounted(() => {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group .template-select {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--border-color);

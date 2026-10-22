@@ -401,7 +401,9 @@ public class AchievementController {
             if (user == null) return Result.error("未登录或登录已过期");
             if (!isStaff(user)) return Result.error("没有评分权限");
             if (score < 0 || score > 100) return Result.error("分数必须在 0-100 之间");
-            int updated = jdbcTemplate.update("UPDATE achievement SET score = ? WHERE id = ?", score, achievementId);
+            int updated = jdbcTemplate.update(
+                    "UPDATE achievement SET score = ?, score_teacher_id = ?, score_time = NOW() WHERE id = ?",
+                    score, user.getId(), achievementId);
             if (updated == 0) return Result.error("成果不存在");
             return Result.success("第一阶段评分成功", null);
         } catch (Exception e) {
@@ -487,6 +489,36 @@ public class AchievementController {
             return Result.success("评审通过成功", null);
         } catch (Exception e) {
             return Result.error(e.getMessage() == null ? "评审通过失败" : e.getMessage());
+        }
+    }
+
+    @PostMapping("/appeal")
+    public Result<?> appeal(@RequestBody Map<String, Object> body, @AuthenticationPrincipal JwtUser user) {
+        try {
+            if (user == null) return Result.error("未登录或登录已过期");
+            if (!"student".equals(user.getUserType())) return Result.error("只有学生可以申请复核");
+            Object achievementId = body.get("achievementId");
+            Object reason = body.get("reason");
+            if (achievementId == null || reason == null || String.valueOf(reason).trim().isEmpty()) {
+                return Result.error("缺少必要参数");
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT student_id FROM achievement WHERE id = ?", achievementId);
+            if (rows.isEmpty()) return Result.error("成果不存在");
+            Object owner = rows.get(0).get("student_id");
+            if (owner == null || ((Number) owner).longValue() != user.getId()) {
+                return Result.error("只能对自己的成果申请复核");
+            }
+            Integer exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM review_appeal WHERE achievement_id = ? AND status = '待处理'",
+                    Integer.class, achievementId);
+            if (exists != null && exists > 0) return Result.error("该成果已有待处理的复核申请");
+            jdbcTemplate.update(
+                    "INSERT INTO review_appeal (achievement_id, student_id, reason, status) VALUES (?,?,?,'待处理')",
+                    achievementId, user.getId(), String.valueOf(reason).trim());
+            return Result.success("复核申请已提交", null);
+        } catch (Exception e) {
+            return Result.error("提交复核申请失败");
         }
     }
 

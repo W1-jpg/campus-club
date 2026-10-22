@@ -28,6 +28,10 @@ const TeacherNoticeManage = () => import('../views/TeacherNoticeManage.vue')
 const AchievementScoring = () => import('../views/AchievementScoring.vue')
 const AchievementIncubation = () => import('../views/AchievementIncubation.vue')
 const TeacherAwardManage = () => import('../views/TeacherAwardManage.vue')
+const TeacherScoreRecords = () => import('../views/TeacherScoreRecords.vue')
+const TeacherScoreStats = () => import('../views/TeacherScoreStats.vue')
+const TeacherIncubation = () => import('../views/TeacherIncubation.vue')
+const TeacherCommentTemplates = () => import('../views/TeacherCommentTemplates.vue')
 
 // 管理员端页面
 const AdminHome = () => import('../views/AdminHome.vue')
@@ -48,6 +52,10 @@ const ExpertHome = () => import('../views/ExpertHome.vue')
 const ExpertAchievementReview = () => import('../views/ExpertAchievementReview.vue')
 const ExpertNotifications = () => import('../views/ExpertNotifications.vue')
 const ExpertReviewHistory = () => import('../views/ExpertReviewHistory.vue')
+const ExpertStatistics = () => import('../views/ExpertStatistics.vue')
+const ExpertReviewStandard = () => import('../views/ExpertReviewStandard.vue')
+const ExpertTaskCalendar = () => import('../views/ExpertTaskCalendar.vue')
+const ExpertAppeals = () => import('../views/ExpertAppeals.vue')
 // 企业合作端页面
 const EnterpriseHome = () => import('../views/EnterpriseHome.vue')
 const EnterpriseResources = () => import('../views/EnterpriseResources.vue')
@@ -221,6 +229,11 @@ const routes = [
         component: AchievementIncubation,
         meta: { title: '成果孵化', requiresAuth: true, userType: 'teacher' }
     },
+    // 教师扩展功能
+    { path: '/teacher-score-records', alias: '/我的评分记录', name: 'TeacherScoreRecords', component: TeacherScoreRecords, meta: { title: '我的评分记录', requiresAuth: true, userType: 'teacher' } },
+    { path: '/teacher-score-stats', alias: '/评分统计', name: 'TeacherScoreStats', component: TeacherScoreStats, meta: { title: '评分统计', requiresAuth: true, userType: 'teacher' } },
+    { path: '/teacher-incubation', alias: '/孵化跟踪', name: 'TeacherIncubation', component: TeacherIncubation, meta: { title: '孵化跟踪', requiresAuth: true, userType: 'teacher' } },
+    { path: '/teacher-comment-templates', alias: '/评语模板', name: 'TeacherCommentTemplates', component: TeacherCommentTemplates, meta: { title: '评语模板', requiresAuth: true, userType: 'teacher' } },
     // 7. 获奖情况管理
     {
         path: '/teacher-award-manage',
@@ -333,6 +346,10 @@ const routes = [
     { path: '/expert-achievement-review', alias: '/成果评审', name: 'ExpertAchievementReview', component: ExpertAchievementReview, meta: { title: '成果评审', requiresAuth: true, userType: 'expert' } },
     { path: '/expert-notifications', alias: '/通知提醒', name: 'ExpertNotifications', component: ExpertNotifications, meta: { title: '通知提醒', requiresAuth: true, userType: 'expert' } },
     { path: '/expert-review-history', alias: '/评审历史', name: 'ExpertReviewHistory', component: ExpertReviewHistory, meta: { title: '评审历史', requiresAuth: true, userType: 'expert' } },
+    { path: '/expert-statistics', alias: '/评审统计', name: 'ExpertStatistics', component: ExpertStatistics, meta: { title: '评审统计', requiresAuth: true, userType: 'expert' } },
+    { path: '/expert-review-standard', alias: '/评审标准', name: 'ExpertReviewStandard', component: ExpertReviewStandard, meta: { title: '评审标准', requiresAuth: true, userType: 'expert' } },
+    { path: '/expert-task-calendar', alias: '/任务日历', name: 'ExpertTaskCalendar', component: ExpertTaskCalendar, meta: { title: '任务日历', requiresAuth: true, userType: 'expert' } },
+    { path: '/expert-appeals', alias: '/评审申诉', name: 'ExpertAppeals', component: ExpertAppeals, meta: { title: '评审申诉/复核', requiresAuth: true, userType: 'expert' } },
     // ==================== 企业合作端核心路由 ====================
     {
         path: '/enterprise-home', alias: '/企业首页', name: 'EnterpriseHome',

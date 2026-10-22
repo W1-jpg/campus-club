@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,49 @@ public class ExpertController {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void initSchema() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS review_appeal (" +
+                    "id BIGINT PRIMARY KEY AUTO_INCREMENT, achievement_id BIGINT NOT NULL, " +
+                    "student_id BIGINT NOT NULL, expert_id BIGINT NULL, reason VARCHAR(500), " +
+                    "status VARCHAR(20) DEFAULT '待处理', reply VARCHAR(500), " +
+                    "create_time DATETIME DEFAULT CURRENT_TIMESTAMP, handle_time DATETIME NULL)");
+        } catch (Exception ignored) { }
+    }
+
+    @GetMapping("/appeals")
+    public Result<?> appeals(@AuthenticationPrincipal JwtUser user) {
+        if (!isExpertOrAdmin(user)) return Result.error("没有评审权限");
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT ra.id, ra.achievement_id AS achievementId, a.title AS achievementTitle, " +
+                            "ra.student_id AS studentId, s.real_name AS studentName, ra.reason, ra.status, " +
+                            "ra.reply, ra.create_time AS createTime, ra.handle_time AS handleTime " +
+                            "FROM review_appeal ra LEFT JOIN achievement a ON ra.achievement_id = a.id " +
+                            "LEFT JOIN student_user s ON ra.student_id = s.id ORDER BY ra.create_time DESC");
+            return Result.success(rows);
+        } catch (Exception e) {
+            return Result.error("获取复核申请失败");
+        }
+    }
+
+    @PutMapping("/appeals/{id}/reply")
+    public Result<?> replyAppeal(@PathVariable Long id, @RequestBody Map<String, Object> body,
+                                 @AuthenticationPrincipal JwtUser user) {
+        if (!isExpertOrAdmin(user)) return Result.error("没有评审权限");
+        try {
+            Object reply = body.get("reply");
+            Object status = body.get("status");
+            if (reply == null || status == null) return Result.error("缺少回复或状态");
+            jdbcTemplate.update("UPDATE review_appeal SET reply = ?, status = ?, expert_id = ?, handle_time = NOW() WHERE id = ?",
+                    reply, status, user.getId(), id);
+            return Result.success("复核处理成功", null);
+        } catch (Exception e) {
+            return Result.error("复核处理失败");
+        }
+    }
 
     @GetMapping("/tasks")
     public Result<?> tasks(@AuthenticationPrincipal JwtUser user) {
