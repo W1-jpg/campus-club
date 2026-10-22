@@ -21,6 +21,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // M4：企业端走 Spring Boot
+      '/api/enterprise': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/alipay': {
         target: 'http://localhost:8080',
         changeOrigin: true,
