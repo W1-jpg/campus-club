@@ -62,6 +62,11 @@ const EnterpriseResources = () => import('../views/EnterpriseResources.vue')
 const EnterpriseApplications = () => import('../views/EnterpriseApplications.vue')
 const EnterpriseAchievements = () => import('../views/EnterpriseAchievements.vue')
 const EnterpriseWallet = () => import('../views/EnterpriseWallet.vue')
+const EnterpriseProfile = () => import('../views/EnterpriseProfile.vue')
+const EnterpriseMyResources = () => import('../views/EnterpriseMyResources.vue')
+const EnterpriseInvestment = () => import('../views/EnterpriseInvestment.vue')
+const EnterpriseIntents = () => import('../views/EnterpriseIntents.vue')
+const StudentIntents = () => import('../views/StudentIntents.vue')
 
 const routes = [
     { path: '/', redirect: '/login/student' },
@@ -360,6 +365,11 @@ const routes = [
     { path: '/enterprise-applications', alias: '/企业审批申请', name: 'EnterpriseApplications', component: EnterpriseApplications, meta: { title: '申请审批', requiresAuth: true, userType: 'enterprise' } },
     { path: '/enterprise-achievements', alias: '/企业浏览成果', name: 'EnterpriseAchievements', component: EnterpriseAchievements, meta: { title: '浏览成果', requiresAuth: true, userType: 'enterprise' } },
     { path: '/enterprise-wallet', alias: '/企业钱包', name: 'EnterpriseWallet', component: EnterpriseWallet, meta: { title: '钱包充值', requiresAuth: true, userType: 'enterprise' } },
+    { path: '/enterprise-profile', alias: '/企业资料', name: 'EnterpriseProfile', component: EnterpriseProfile, meta: { title: '企业资料', requiresAuth: true, userType: 'enterprise' } },
+    { path: '/enterprise-my-resources', alias: '/企业我的资源', name: 'EnterpriseMyResources', component: EnterpriseMyResources, meta: { title: '我的资源', requiresAuth: true, userType: 'enterprise' } },
+    { path: '/enterprise-investment', alias: '/企业投入统计', name: 'EnterpriseInvestment', component: EnterpriseInvestment, meta: { title: '投入统计', requiresAuth: true, userType: 'enterprise' } },
+    { path: '/enterprise-intents', alias: '/企业合作意向', name: 'EnterpriseIntents', component: EnterpriseIntents, meta: { title: '合作意向', requiresAuth: true, userType: 'enterprise' } },
+    { path: '/student-intents', alias: '/学生合作意向', name: 'StudentIntents', component: StudentIntents, meta: { title: '合作意向', requiresAuth: true, userType: 'student' } },
 
     // ==================== 数据可视化（学生/教师/管理员共用） ====================
     {

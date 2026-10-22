@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.PostConstruct;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -23,6 +24,143 @@ public class EnterpriseController {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void initSchema() {
+        try {
+            jdbcTemplate.execute("ALTER TABLE enterprise_user ADD COLUMN description TEXT");
+        } catch (Exception ignored) { }
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS cooperation_intent (" +
+                    "id BIGINT PRIMARY KEY AUTO_INCREMENT, enterprise_id BIGINT NOT NULL, " +
+                    "achievement_id BIGINT NOT NULL, student_id BIGINT NOT NULL, " +
+                    "message VARCHAR(500), status VARCHAR(20) DEFAULT '待回复', " +
+                    "reply VARCHAR(500), create_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                    "update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+        } catch (Exception ignored) { }
+    }
+
+    // ==================== 企业资料 ====================
+
+    @GetMapping("/profile")
+    public Result<?> profile(@AuthenticationPrincipal JwtUser user) {
+        if (user == null || (!"enterprise".equals(user.getUserType()) && !"admin".equals(user.getUserType()))) {
+            return Result.error("没有企业权限");
+        }
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT id, username, real_name AS realName, company_name AS companyName, phone, email, " +
+                            "industry, address, description, status, create_time AS createTime " +
+                            "FROM enterprise_user WHERE id = ?", user.getId());
+            if (rows.isEmpty()) return Result.error("企业不存在");
+            return Result.success(rows.get(0));
+        } catch (Exception e) {
+            return Result.error("获取企业资料失败");
+        }
+    }
+
+    @PutMapping("/profile")
+    public Result<?> updateProfile(@RequestBody Map<String, Object> body, @AuthenticationPrincipal JwtUser user) {
+        if (user == null || !"enterprise".equals(user.getUserType())) return Result.error("没有企业权限");
+        try {
+            jdbcTemplate.update(
+                    "UPDATE enterprise_user SET real_name=?, company_name=?, phone=?, email=?, industry=?, address=?, description=? WHERE id=?",
+                    body.get("realName"), body.get("companyName"), body.get("phone"), body.get("email"),
+                    body.get("industry"), body.get("address"), body.get("description"), user.getId());
+            return Result.success("保存成功", null);
+        } catch (Exception e) {
+            return Result.error("保存失败");
+        }
+    }
+
+    // ==================== 合作意向 ====================
+
+    @GetMapping("/intents")
+    public Result<?> intents(@AuthenticationPrincipal JwtUser user) {
+        if (user == null || (!"enterprise".equals(user.getUserType()) && !"admin".equals(user.getUserType()))) {
+            return Result.error("没有企业权限");
+        }
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT ci.id, ci.achievement_id AS achievementId, a.title AS achievementTitle, " +
+                            "ci.student_id AS studentId, s.real_name AS studentName, ci.message, ci.status, " +
+                            "ci.reply, ci.create_time AS createTime, ci.update_time AS updateTime " +
+                            "FROM cooperation_intent ci LEFT JOIN achievement a ON ci.achievement_id = a.id " +
+                            "LEFT JOIN student_user s ON ci.student_id = s.id " +
+                            "WHERE ci.enterprise_id = ? ORDER BY ci.create_time DESC", user.getId());
+            return Result.success(rows);
+        } catch (Exception e) {
+            return Result.error("获取合作意向失败");
+        }
+    }
+
+    @PostMapping("/intents")
+    public Result<?> createIntent(@RequestBody Map<String, Object> body, @AuthenticationPrincipal JwtUser user) {
+        if (user == null || !"enterprise".equals(user.getUserType())) return Result.error("没有企业权限");
+        try {
+            Object achievementId = body.get("achievementId");
+            Object message = body.get("message");
+            if (achievementId == null || message == null || String.valueOf(message).trim().isEmpty()) {
+                return Result.error("缺少成果或合作说明");
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT student_id FROM achievement WHERE id = ?", achievementId);
+            if (rows.isEmpty()) return Result.error("成果不存在");
+            Integer pending = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM cooperation_intent WHERE enterprise_id=? AND achievement_id=? AND status='待回复'",
+                    Integer.class, user.getId(), achievementId);
+            if (pending != null && pending > 0) return Result.error("已发起过合作意向，请等待学生回复");
+            jdbcTemplate.update(
+                    "INSERT INTO cooperation_intent (enterprise_id, achievement_id, student_id, message, status) " +
+                            "VALUES (?,?,?,?,'待回复')",
+                    user.getId(), achievementId, rows.get(0).get("student_id"), String.valueOf(message).trim());
+            return Result.success("合作意向已发送", null);
+        } catch (Exception e) {
+            return Result.error("发送合作意向失败");
+        }
+    }
+
+    // ==================== 投入统计 ====================
+
+    @GetMapping("/investment-stats")
+    public Result<?> investmentStats(@AuthenticationPrincipal JwtUser user) {
+        if (user == null || (!"enterprise".equals(user.getUserType()) && !"admin".equals(user.getUserType()))) {
+            return Result.error("没有企业权限");
+        }
+        try {
+            Long eid = user.getId();
+            Map<String, Object> data = new LinkedHashMap<>();
+            Map<String, Object> totals = jdbcTemplate.queryForMap(
+                    "SELECT COALESCE(SUM(amount),0) AS totalAmount, COUNT(DISTINCT resource_id) AS fundedResources " +
+                            "FROM resource_expense WHERE enterprise_id = ?", eid);
+            data.put("totalAmount", totals.get("totalAmount"));
+            data.put("fundedResources", totals.get("fundedResources"));
+            data.put("resourceCount", jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM resource WHERE enterprise_id = ?", Integer.class, eid));
+            data.put("applicationCount", jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM resource_application ra JOIN resource r ON ra.resource_id=r.id WHERE r.enterprise_id=?",
+                    Integer.class, eid));
+            data.put("studentCount", jdbcTemplate.queryForObject(
+                    "SELECT COUNT(DISTINCT ra.student_id) FROM resource_application ra JOIN resource r ON ra.resource_id=r.id WHERE r.enterprise_id=?",
+                    Integer.class, eid));
+
+            data.put("typeDist", jdbcTemplate.queryForList(
+                    "SELECT COALESCE(NULLIF(r.type,''),'未分类') AS name, SUM(re.amount) AS value " +
+                            "FROM resource_expense re JOIN resource r ON re.resource_id=r.id " +
+                            "WHERE re.enterprise_id=? GROUP BY name ORDER BY value DESC", eid));
+            data.put("monthly", jdbcTemplate.queryForList(
+                    "SELECT DATE_FORMAT(create_time,'%Y-%m') AS month, SUM(amount) AS value " +
+                            "FROM resource_expense WHERE enterprise_id=? AND create_time >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH) " +
+                            "GROUP BY month ORDER BY month", eid));
+            data.put("topResources", jdbcTemplate.queryForList(
+                    "SELECT r.title, SUM(re.amount) AS amount FROM resource_expense re " +
+                            "JOIN resource r ON re.resource_id=r.id WHERE re.enterprise_id=? " +
+                            "GROUP BY r.id, r.title ORDER BY amount DESC LIMIT 5", eid));
+            return Result.success(data);
+        } catch (Exception e) {
+            return Result.error("获取投入统计失败");
+        }
+    }
 
     // ==================== 统计 ====================
 

@@ -155,6 +155,7 @@
         <el-button @click.stop="toggle(detailItem)" :type="detailItem?.isBookmarked ? 'warning' : ''">
           {{ detailItem?.isBookmarked ? '⭐ 已收藏' : '☆ 收藏成果' }}
         </el-button>
+        <el-button type="success" @click.stop="cooperate(detailItem)">发起合作</el-button>
         <el-button type="primary" @click="showDetail = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -164,6 +165,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Star, StarFilled, Loading } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageLayout from '../components/PageLayout.vue'
 import request from '../utils/request'
 
@@ -204,6 +206,24 @@ const load = async () => {
       }
     } catch (e2) { console.error('降级加载也失败:', e2) }
   } finally { loading.value = false }
+}
+
+const cooperate = async (item) => {
+  if (!item) return
+  try {
+    const { value } = await ElMessageBox.prompt('请填写合作意向说明，例如合作方向、可提供的资源等', '发起合作', {
+      inputType: 'textarea',
+      inputPlaceholder: '我们对该成果很感兴趣，希望进一步沟通合作……',
+      confirmButtonText: '发送',
+      cancelButtonText: '取消',
+      inputValidator: (v) => (v && v.trim() ? true : '请填写合作说明')
+    })
+    const res = await request.post('/api/enterprise/intents', { achievementId: item.id, message: value.trim() })
+    if (res.code === 200) ElMessage.success('合作意向已发送')
+    else ElMessage.error(res.msg || '发送失败')
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e.msg || '发送失败')
+  }
 }
 
 const toggle = async (item) => {

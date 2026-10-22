@@ -9,6 +9,7 @@ export const navConfig = {
     { label: '我的成果', path: '/我的成果', icon: 'Document' },
     { label: '资源对接', path: '/资源对接', icon: 'Connection' },
     { label: '我的申请', path: '/我的申请', icon: 'List' },
+    { label: '合作意向', path: '/student-intents', icon: 'ChatDotRound' },
     { label: '获奖上传', path: '/获奖上传', icon: 'Trophy' },
     { label: '数据可视化', path: '/数据可视化', icon: 'DataAnalysis' },
   ],
@@ -54,8 +55,12 @@ export const navConfig = {
   enterprise: [
     { label: '首页', path: '/enterprise-home', icon: 'HomeFilled' },
     { label: '资源投递', path: '/enterprise-resources', icon: 'Upload' },
+    { label: '我的资源', path: '/enterprise-my-resources', icon: 'Box' },
     { label: '审批申请', path: '/enterprise-applications', icon: 'List' },
+    { label: '合作意向', path: '/enterprise-intents', icon: 'ChatDotRound' },
     { label: '浏览成果', path: '/enterprise-achievements', icon: 'View' },
+    { label: '投入统计', path: '/enterprise-investment', icon: 'DataAnalysis' },
     { label: '钱包充值', path: '/enterprise-wallet', icon: 'Wallet' },
+    { label: '企业资料', path: '/enterprise-profile', icon: 'OfficeBuilding' },
   ]
 }
