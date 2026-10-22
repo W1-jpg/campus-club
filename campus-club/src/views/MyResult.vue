@@ -51,6 +51,7 @@
             </div>
             <div class="result-card__actions">
               <el-button type="primary" plain size="small" @click="viewDetail(item.id)">👁️ 查看</el-button>
+              <el-button v-if="String(item.reviewStatus) === '2'" type="info" plain size="small" @click="appealResult(item)">📝 申请复核</el-button>
               <el-button type="warning" plain size="small" @click="editResult(item)">✏️ 修改</el-button>
               <el-button type="danger" plain size="small" @click="deleteResult(item.id)">🗑️ 删除</el-button>
             </div>
@@ -125,6 +126,23 @@ const loadMyResults = async () => {
 }
 
 const viewDetail = (id) => router.push(`/成果详情/${id}`)
+
+const appealResult = async (item) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写申请复核的理由', '申请复核', {
+      inputType: 'textarea',
+      inputPlaceholder: '例如：认为评审分数与成果实际水平不符，理由如下……',
+      confirmButtonText: '提交',
+      cancelButtonText: '取消',
+      inputValidator: (v) => (v && v.trim() ? true : '请填写复核理由')
+    })
+    const res = await request.post('/api/result/appeal', { achievementId: item.id, reason: value.trim() })
+    if (res.code === 200) ElMessage.success('复核申请已提交')
+    else ElMessage.error(res.msg || '提交失败')
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e.msg || '提交失败')
+  }
+}
 const editResult = (result) => { editForm.value = { ...result }; editDialogVisible.value = true }
 
 const submitEdit = async () => {

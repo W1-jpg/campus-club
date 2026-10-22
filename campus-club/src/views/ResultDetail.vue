@@ -65,7 +65,7 @@
 
           <div class="result-actions">
             <el-button :type="result.isLiked ? 'danger' : 'default'" :icon="result.isLiked ? 'el-icon-thumb' : 'el-icon-thumb-outline'" @click="likeResult" :class="{ 'liked': result.isLiked }" class="like-button">{{ result.isLiked ? '已点赞' : '点赞' }} ({{ result.likeCount }})</el-button>
-            <el-button v-if="result.reviewStatus === 2 && userType === 'student'" @click="appealReview">申请复核</el-button>
+            <el-button v-if="String(result.reviewStatus) === '2' && userType === 'student'" @click="appealReview">申请复核</el-button>
           </div>
         </div>
       </el-card>
