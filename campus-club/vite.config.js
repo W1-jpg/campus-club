@@ -57,6 +57,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // 仅合作意向接口走 Spring；/api/student/info 仍保留在 Express
+      '^/api/student/intents': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
