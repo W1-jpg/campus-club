@@ -1,12 +1,12 @@
 import axios from 'axios'
 
 // 创建axios实例，通过Vite代理对接后端API
+// 不要全局写死 Content-Type：
+// 普通对象由 axios 自动设为 application/json，
+// FormData 由浏览器自动设为 multipart/form-data 并带 boundary。
 const request = axios.create({
     baseURL: '/',
-    timeout: 15000,
-    headers: {
-        'Content-Type': 'application/json;charset=utf-8'
-    }
+    timeout: 15000
 })
 
 // 请求拦截器：添加JWT令牌，实现权限验证
