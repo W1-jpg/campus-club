@@ -56,8 +56,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/api/auth/**", "/api/alipay/notify", "/error").permitAll()
                 // 钱包/支出接口必须登录
                 .antMatchers("/api/alipay/**", "/api/expense/**").authenticated()
-                // 旧业务接口暂保持原状
-                .antMatchers("/api/result/**", "/api/notice/**", "/api/resource/**", "/api/achievement/**").permitAll()
+                // M2 成果接口必须登录；其余旧接口暂保持原状
+                .antMatchers("/api/notice/**", "/api/resource/**", "/api/achievement/**").permitAll()
                 .anyRequest().authenticated()
                 .and()
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
