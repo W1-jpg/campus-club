@@ -2028,8 +2028,15 @@ db.query(`ALTER TABLE resource_application ADD COLUMN status VARCHAR(20) DEFAULT
 // 企业端接口统一要求企业令牌，且只能访问本企业数据
 app.use('/api/enterprise', requireRole('enterprise', 'admin'), (req, res, next) => {
   if (req.user.userType !== 'enterprise') return next();
-  const fromPath = (req.path.match(/\/(\d+)(?:\/|$)/) || [])[1];
-  const id = Number(req.query.enterpriseId || (req.body && req.body.enterpriseId) || fromPath || 0);
+
+  // 只对路径里确实是“企业ID”的接口做归属校验。
+  // /applications/:id/status 里的 id 是申请ID，不是企业ID，交给具体路由校验资源归属。
+  let id = Number(req.query.enterpriseId || (req.body && req.body.enterpriseId) || 0);
+  const statsOrResources = req.path.match(/^\/(stats|resources)\/(\d+)(?:\/|$)/);
+  if (statsOrResources) id = Number(statsOrResources[2]);
+  const applicationList = req.path.match(/^\/applications\/(\d+)\/?$/);
+  if (applicationList) id = Number(applicationList[1]);
+
   if (id && id !== req.user.id) {
     return res.status(403).json({ code: 403, msg: '只能访问本企业的数据' });
   }
@@ -2099,9 +2106,21 @@ app.get('/api/enterprise/applications/:enterpriseId', (req, res) => {
 app.put('/api/enterprise/applications/:id/status', (req, res) => {
   const { status } = req.body;
   if (!status) { res.status(400).json({ code: 400, msg: '缺少状态' }); return; }
-  db.query('UPDATE resource_application SET status = ? WHERE id = ?', [status, req.params.id], (err) => {
-    if (err) { res.status(500).json({ code: 500, msg: '操作失败' }); return; }
-    res.json({ code: 200, msg: '已' + status });
+
+  // 校验这条申请对应的资源确实属于当前企业，防止企业A审批企业B的申请
+  const checkSql = `SELECT r.enterprise_id FROM resource_application ra
+    JOIN resource r ON ra.resource_id = r.id WHERE ra.id = ?`;
+  db.query(checkSql, [req.params.id], (checkErr, rows) => {
+    if (checkErr) { res.status(500).json({ code: 500, msg: '操作失败' }); return; }
+    if (!rows.length) { res.status(404).json({ code: 404, msg: '申请不存在' }); return; }
+    if (req.user.userType !== 'admin' && Number(rows[0].enterprise_id) !== Number(req.user.id)) {
+      res.status(403).json({ code: 403, msg: '只能审批本企业资源的申请' });
+      return;
+    }
+    db.query('UPDATE resource_application SET status = ? WHERE id = ?', [status, req.params.id], (err) => {
+      if (err) { res.status(500).json({ code: 500, msg: '操作失败' }); return; }
+      res.json({ code: 200, msg: '已' + status });
+    });
   });
 });
 
