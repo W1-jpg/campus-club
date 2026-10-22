@@ -21,9 +21,11 @@ public class JwtUtil {
     @Value("${jwt.expiration}")
     private long expiration;
 
-    public String generateToken(String username, String userType) {
+    public String generateToken(Long id, String username, String userType, String college) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("id", id);
         claims.put("userType", userType);
+        claims.put("college", college == null ? "" : college);
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -32,6 +34,10 @@ public class JwtUtil {
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(SignatureAlgorithm.HS256, secret.getBytes(StandardCharsets.UTF_8))
                 .compact();
+    }
+
+    public String generateToken(String username, String userType) {
+        return generateToken(null, username, userType, "");
     }
 
     public String extractUsername(String token) {

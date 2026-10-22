@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     proxy: {
+      // M1：认证走 Spring Boot
+      '/api/auth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/alipay': {
         target: 'http://localhost:8080',
         changeOrigin: true,

@@ -1,22 +1,21 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.JwtUser;
 import com.example.demo.service.AuthService;
+import com.example.demo.service.EmailCodeService;
 import com.example.demo.util.Result;
 import com.example.demo.vo.LoginVO;
 import com.example.demo.vo.RegisterVO;
 import com.example.demo.vo.WxLoginVO;
-import javax.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
- * 认证控制器：处理登录/注册请求
+ * 认证控制器：登录、注册、邮箱验证码、找回密码、注销
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -25,155 +24,190 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
-    /**
-     * 学生登录接口
-     * 关键修复：添加@Valid + BindingResult，触发LoginVO的参数校验
-     */
+    @Autowired
+    private EmailCodeService emailCodeService;
+
+    // ==================== 登录 ====================
+
     @PostMapping("/login/student")
-    public Result<?> loginStudent(@Valid @RequestBody LoginVO loginVO, BindingResult bindingResult) {
-        // 第一步：拦截空值/全空格（LoginVO的@NotBlank注解生效）
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getFieldError().getDefaultMessage();
-            return Result.error(errorMsg);
-        }
-
-        // 第二步：手动trim，防止空格绕过校验
-        String username = loginVO.getUsername().trim();
-        String password = loginVO.getPassword().trim();
-        if (username.isEmpty() || password.isEmpty()) {
-            return Result.error("用户名或密码不能为空");
-        }
-
-        // 第三步：执行业务逻辑（仅传递处理后的参数）
-        try {
-            LoginVO validLoginVO = new LoginVO();
-            validLoginVO.setUsername(username);
-            validLoginVO.setPassword(password);
-            String token = authService.loginStudent(validLoginVO);
-            // 仅当token非空时返回成功（双重保障）
-            if (token == null || token.isEmpty()) {
-                return Result.error("登录失败：Token生成失败");
-            }
-            // 获取学生ID和学院信息
-            Long studentId = authService.getStudentId(username);
-            String college = authService.getStudentCollege(username);
-            // 返回token、studentId和college
-            return Result.success("{\"token\":\"" + token + "\",\"studentId\":\"" + studentId + "\",\"college\":\"" + college + "\"}");
-        } catch (Exception e) {
-            // 明确返回错误信息，禁止吞掉异常
-            return Result.error(e.getMessage());
-        }
+    public Result<?> loginStudent(@RequestBody LoginVO vo) {
+        return login("student", vo);
     }
 
-    // 教师登录接口（同学生接口，添加完整校验）
     @PostMapping("/login/teacher")
-    public Result<?> loginTeacher(@Valid @RequestBody LoginVO loginVO, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getFieldError().getDefaultMessage();
-            return Result.error(errorMsg);
-        }
-
-        String username = loginVO.getUsername().trim();
-        String password = loginVO.getPassword().trim();
-        if (username.isEmpty() || password.isEmpty()) {
-            return Result.error("用户名或密码不能为空");
-        }
-
-        try {
-            LoginVO validLoginVO = new LoginVO();
-            validLoginVO.setUsername(username);
-            validLoginVO.setPassword(password);
-            String token = authService.loginTeacher(validLoginVO);
-            if (token == null || token.isEmpty()) {
-                return Result.error("登录失败：Token生成失败");
-            }
-            // 获取教师ID和学院信息
-            Long teacherId = authService.getTeacherId(username);
-            String college = authService.getTeacherCollege(username);
-            // 返回token、teacherId和college
-            return Result.success("{\"token\":\"" + token + "\",\"teacherId\":\"" + teacherId + "\",\"college\":\"" + college + "\"}");
-        } catch (Exception e) {
-            return Result.error(e.getMessage());
-        }
+    public Result<?> loginTeacher(@RequestBody LoginVO vo) {
+        return login("teacher", vo);
     }
 
-    // 管理员登录接口（同学生接口，添加完整校验）
     @PostMapping("/login/admin")
-    public Result<?> loginAdmin(@Valid @RequestBody LoginVO loginVO, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getFieldError().getDefaultMessage();
-            return Result.error(errorMsg);
-        }
+    public Result<?> loginAdmin(@RequestBody LoginVO vo) {
+        return login("admin", vo);
+    }
 
-        String username = loginVO.getUsername().trim();
-        String password = loginVO.getPassword().trim();
-        if (username.isEmpty() || password.isEmpty()) {
-            return Result.error("用户名或密码不能为空");
-        }
+    @PostMapping("/login/expert")
+    public Result<?> loginExpert(@RequestBody LoginVO vo) {
+        return login("expert", vo);
+    }
 
+    @PostMapping("/login/enterprise")
+    public Result<?> loginEnterprise(@RequestBody LoginVO vo) {
+        return login("enterprise", vo);
+    }
+
+    private Result<?> login(String userType, LoginVO vo) {
         try {
-            LoginVO validLoginVO = new LoginVO();
-            validLoginVO.setUsername(username);
-            validLoginVO.setPassword(password);
-            String token = authService.loginAdmin(validLoginVO);
-            if (token == null || token.isEmpty()) {
-                return Result.error("登录失败：Token生成失败");
+            if (vo == null || vo.getUsername() == null || vo.getUsername().trim().isEmpty()
+                    || vo.getPassword() == null || vo.getPassword().isEmpty()) {
+                return Result.error("用户名或密码不能为空");
             }
-            // 获取管理员ID
-            Long adminId = authService.getAdminId(username);
-            // 返回token和adminId
-            return Result.success("{\"token\":\"" + token + "\",\"adminId\":\"" + adminId + "\"}");
+            String username = vo.getUsername().trim();
+            vo.setUsername(username);
+
+            String token;
+            switch (userType) {
+                case "student": token = authService.loginStudent(vo); break;
+                case "teacher": token = authService.loginTeacher(vo); break;
+                case "admin": token = authService.loginAdmin(vo); break;
+                case "expert": token = authService.loginExpert(vo); break;
+                case "enterprise": token = authService.loginEnterprise(vo); break;
+                default: return Result.error("角色类型不正确");
+            }
+
+            Map<String, Object> info = authService.getUserInfo(userType, username);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("token", token);
+            data.put("user", info);
+
+            if ("student".equals(userType)) {
+                data.put("studentId", info.get("id"));
+                data.put("college", info.get("college"));
+            } else if ("teacher".equals(userType)) {
+                data.put("teacherId", info.get("id"));
+                data.put("college", info.get("college"));
+            } else if ("admin".equals(userType)) {
+                data.put("adminId", info.get("id"));
+            } else if ("expert".equals(userType)) {
+                data.put("expertId", info.get("id"));
+            } else if ("enterprise".equals(userType)) {
+                data.put("enterpriseId", info.get("id"));
+            }
+            return Result.success(data);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
     }
 
-    /**
-     * 注册接口（可选：添加参数校验）
-     */
-    @PostMapping("/register/{userType}")
-    public Result<?> register(@PathVariable String userType, @Valid @RequestBody RegisterVO registerVO, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getFieldError().getDefaultMessage();
-            return Result.error(errorMsg);
-        }
+    // ==================== 注册 ====================
 
+    @PostMapping("/send-code")
+    public Result<?> sendCode(@RequestBody Map<String, Object> body) {
         try {
-            authService.register(userType, registerVO);
+            String purpose = body.get("purpose") == null ? "reset" : String.valueOf(body.get("purpose"));
+            String username = body.get("username") == null ? "" : String.valueOf(body.get("username")).trim();
+            if ("register".equals(purpose)) {
+                String email = body.get("email") == null ? "" : String.valueOf(body.get("email")).trim();
+                emailCodeService.sendRegisterCode(email, username);
+                return Result.success("验证码已发送", null);
+            }
+            String userType = body.get("userType") == null ? "" : String.valueOf(body.get("userType"));
+            if (username.isEmpty() || userType.isEmpty()) {
+                return Result.error("缺少用户名或角色");
+            }
+            emailCodeService.sendResetCode(userType, username);
+            return Result.success("验证码已发送", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/register/{userType}")
+    public Result<?> register(@PathVariable String userType, @RequestBody RegisterVO vo) {
+        try {
+            if (vo.getEmail() == null || vo.getEmail().trim().isEmpty()) {
+                return Result.error("请填写邮箱");
+            }
+            emailCodeService.verifyRegisterCode(vo.getEmail(), vo.getCode());
+            authService.register(userType, vo);
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
     }
 
-    /**
-     * 微信小程序登录接口
-     * 接收 code + nickName + avatarUrl + userType → 返回 JWT
-     */
-    @PostMapping("/wx-login")
-    public Result<?> wxLogin(@RequestBody WxLoginVO vo) {
+    @PostMapping("/verify-identity")
+    public Result<?> verifyIdentity(@RequestBody Map<String, Object> body) {
         try {
-            String token = authService.wxLogin(vo.getCode(), vo.getNickName(), vo.getAvatarUrl(), vo.getUserType());
-            if (token == null || token.isEmpty()) {
-                return Result.error("登录失败：无法生成凭证");
+            String username = String.valueOf(body.get("username"));
+            String userType = String.valueOf(body.get("userType"));
+            String realName = String.valueOf(body.get("realName"));
+            if (authService.verifyIdentity(userType, username, realName)) {
+                return Result.success("身份验证通过");
             }
-            return Result.success("{\"token\":\"" + token + "\"}");
+            return Result.error("用户名与真实姓名不匹配");
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
     }
 
-    /**
-     * 注销账号接口
-     */
-    @PostMapping("/delete/{userType}")
-    public Result<?> deleteAccount(@PathVariable String userType, @RequestParam String username) {
+    @PostMapping("/reset-password")
+    public Result<?> resetPassword(@RequestBody Map<String, Object> body) {
         try {
+            String username = String.valueOf(body.get("username"));
+            String userType = String.valueOf(body.get("userType"));
+            String realName = String.valueOf(body.get("realName"));
+            String code = String.valueOf(body.get("code"));
+            String newPassword = String.valueOf(body.get("newPassword"));
+
+            if (!authService.verifyIdentity(userType, username, realName)) {
+                return Result.error("身份信息不匹配");
+            }
+            emailCodeService.verifyResetCode(userType, username, code);
+            authService.resetPassword(userType, username, newPassword);
+            return Result.success("密码重置成功");
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    // ==================== 微信登录 ====================
+
+    @PostMapping("/wx-login")
+    public Result<?> wxLogin(@RequestBody WxLoginVO vo) {
+        try {
+            String token = authService.wxLogin(vo.getCode(), vo.getNickName(), vo.getAvatarUrl(), vo.getUserType());
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("token", token);
+            return Result.success(data);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    // ==================== 注销 ====================
+
+    @PostMapping("/delete/{userType}")
+    public Result<?> deleteAccount(@PathVariable String userType,
+                                   @RequestParam(required = false) String username,
+                                   @AuthenticationPrincipal JwtUser user) {
+        try {
+            if (user == null) {
+                return Result.error("未登录或登录已过期");
+            }
+            boolean admin = "admin".equals(user.getUserType());
+            if (!admin) {
+                if (!user.getUserType().equals(userType)
+                        || (username != null && !username.equals(user.getUsername()))) {
+                    return Result.error("只能注销自己的账号");
+                }
+                username = user.getUsername();
+            }
+            if (username == null || username.isEmpty()) {
+                return Result.error("缺少用户名");
+            }
             authService.deleteAccount(userType, username);
             return Result.success("账号注销成功");
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
     }
-
 }

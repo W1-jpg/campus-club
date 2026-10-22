@@ -46,6 +46,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         ? ((Number) idValue).longValue()
                         : Long.valueOf(String.valueOf(idValue));
                 String username = claims.get("username", String.class);
+                if (username == null || username.isEmpty()) {
+                    // Spring 自己签发的令牌把用户名放在 subject
+                    username = claims.getSubject();
+                }
                 String userType = claims.get("userType", String.class);
                 String college = claims.get("college", String.class);
 
