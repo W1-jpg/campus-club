@@ -44,6 +44,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // 教师端扩展接口走 Spring Boot
+      '/api/teacher': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/alipay': {
         target: 'http://localhost:8080',
         changeOrigin: true,
