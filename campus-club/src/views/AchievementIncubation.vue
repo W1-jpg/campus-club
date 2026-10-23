@@ -92,10 +92,6 @@
             <label>评分（0-100）</label>
             <el-input-number v-model="scoreForm.score" :min="0" :max="100" controls-position="right" class="w-full" />
           </div>
-          <div class="form-group">
-            <label>评语</label>
-            <el-input type="textarea" v-model="scoreForm.comment" :rows="3" placeholder="请输入评语" />
-          </div>
         </div>
       </div>
       <template #footer>
@@ -135,7 +131,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import PageLayout from '../components/PageLayout.vue'
 
@@ -213,7 +209,7 @@ const viewDetail = async (item) => {
 
 const closeDetailDialog = () => { showDetailDialog.value = false; currentDetail.value = null; currentStudent.value = null }
 
-const scoreIncubation = (item) => { currentIncubation.value = item; scoreForm.value = { score: 0, comment: '' }; showScoreDialog.value = true }
+const scoreIncubation = (item) => { currentIncubation.value = item; scoreForm.value = { score: 0 }; showScoreDialog.value = true }
 const closeScoreDialog = () => { showScoreDialog.value = false; currentIncubation.value = null }
 
 const submitScore = async () => {
@@ -226,12 +222,29 @@ const submitScore = async () => {
 }
 
 const rejectIncubation = async () => {
-  if (!scoreForm.value.comment) { ElMessage.warning('请输入打回原因'); return }
   try {
-    const res = await request({ url: '/api/result/incubation-reject', method: 'post', params: { achievementId: currentIncubation.value.id, reason: scoreForm.value.comment } })
-    if (res.code === 200) { ElMessage.success('打回成功'); closeScoreDialog(); loadIncubations() }
-    else ElMessage.error(res.msg || '打回失败')
-  } catch (error) { ElMessage.error('打回失败：' + (error.msg || '网络错误')) }
+    const { value } = await ElMessageBox.prompt('请填写孵化打回原因，学生端会看到该原因', '打回孵化成果', {
+      inputType: 'textarea',
+      inputPlaceholder: '例如：阶段成果不完整，请补充孵化进展说明',
+      confirmButtonText: '确认打回',
+      cancelButtonText: '取消',
+      inputValidator: (v) => (v && v.trim() ? true : '打回原因不能为空')
+    })
+    const res = await request({
+      url: '/api/result/incubation-reject',
+      method: 'post',
+      params: { achievementId: currentIncubation.value.id, reason: value.trim() }
+    })
+    if (res.code === 200) {
+      ElMessage.success('打回成功')
+      closeScoreDialog()
+      loadIncubations()
+    } else {
+      ElMessage.error(res.msg || '打回失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.msg || '打回失败')
+  }
 }
 
 onMounted(() => { loadIncubations() })

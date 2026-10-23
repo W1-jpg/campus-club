@@ -455,8 +455,13 @@ public class AchievementController {
         try {
             if (user == null) return Result.error("未登录或登录已过期");
             if (!isStaff(user)) return Result.error("没有操作权限");
-            jdbcTemplate.update("UPDATE achievement SET incubation_status = 3, reject_reason = ? WHERE id = ?",
-                    reason, achievementId);
+            if (reason == null || reason.trim().isEmpty()) {
+                return Result.error("请填写打回原因");
+            }
+            int updated = jdbcTemplate.update(
+                    "UPDATE achievement SET incubation_status = 3, reject_reason = ? WHERE id = ?",
+                    reason.trim(), achievementId);
+            if (updated == 0) return Result.error("成果不存在");
             return Result.success("打回成功", null);
         } catch (Exception e) {
             return Result.error(e.getMessage() == null ? "打回失败" : e.getMessage());
