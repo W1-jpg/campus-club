@@ -52,9 +52,9 @@
                 <span class="reject-alert__icon">⚠️</span>
                 <div class="reject-alert__body">
                   <b>该成果已被教师打回</b>
-                  <p>{{ item.rejectReason || '请根据评审意见修改后重新提交' }}</p>
+                  <p>{{ item.rejectReason || '请根据评审意见修改后联系教师重新审核' }}</p>
                 </div>
-                <el-button type="danger" plain size="small" @click="editResult(item)">修改并重新提交</el-button>
+                <el-button type="danger" plain size="small" @click="editResult(item)">修改成果</el-button>
               </div>
             </div>
             <div class="result-card__actions">

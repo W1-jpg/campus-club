@@ -57,7 +57,9 @@
           </div>
           <div class="card-footer">
             <button class="btn-view" @click="viewDetail(item)">查看详情</button>
-            <button class="btn-score" v-if="item.status === 'pending'" @click="openScoreDialog(item)">评分</button>
+            <button class="btn-score" v-if="item.status === 'pending' || item.status === 'rejected'" @click="openScoreDialog(item)">
+              {{ item.status === 'rejected' ? '重新评分' : '评分' }}
+            </button>
           </div>
         </div>
       </div>
@@ -172,6 +174,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import PageLayout from '../components/PageLayout.vue'
 
@@ -335,26 +338,30 @@ const submitScore = async () => {
 }
 
 const rejectAchievement = async () => {
-  if (!scoreForm.value.comment) {
-    alert('请输入打回原因')
-    return
-  }
   try {
+    const { value } = await ElMessageBox.prompt('请填写打回原因，学生端会在“我的成果”中看到该原因', '打回成果', {
+      inputType: 'textarea',
+      inputPlaceholder: '例如：材料不完整，请补充项目说明和成果附件',
+      confirmButtonText: '确认打回',
+      cancelButtonText: '取消',
+      inputValidator: (v) => (v && v.trim() ? true : '打回原因不能为空')
+    })
     const res = await request({
       url: '/api/result/reject',
       method: 'post',
-      params: { achievementId: currentAchievement.value.id, reason: scoreForm.value.comment }
+      params: { achievementId: currentAchievement.value.id, reason: value.trim() }
     })
     if (res.code === 200) {
-      alert('打回成功！')
+      ElMessage.success('打回成功，学生端可看到打回原因')
       closeScoreDialog()
       loadAchievements()
     } else {
-      alert(res.msg || '打回失败')
+      ElMessage.error(res.msg || '打回失败')
     }
   } catch (error) {
-    console.error('打回失败:', error)
-    alert('打回失败：' + (error.msg || '网络错误'))
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.msg || '打回失败')
+    }
   }
 }
 

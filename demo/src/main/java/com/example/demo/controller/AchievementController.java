@@ -402,7 +402,9 @@ public class AchievementController {
             if (!isStaff(user)) return Result.error("没有评分权限");
             if (score < 0 || score > 100) return Result.error("分数必须在 0-100 之间");
             int updated = jdbcTemplate.update(
-                    "UPDATE achievement SET score = ?, score_teacher_id = ?, score_time = NOW() WHERE id = ?",
+                    "UPDATE achievement SET score = ?, score_teacher_id = ?, score_time = NOW(), " +
+                            "review_status = CASE WHEN review_status = 3 THEN 0 ELSE review_status END, " +
+                            "reject_reason = NULL WHERE id = ?",
                     score, user.getId(), achievementId);
             if (updated == 0) return Result.error("成果不存在");
             return Result.success("第一阶段评分成功", null);
@@ -545,8 +547,13 @@ public class AchievementController {
         try {
             if (user == null) return Result.error("未登录或登录已过期");
             if (!isStaff(user)) return Result.error("没有操作权限");
-            jdbcTemplate.update("UPDATE achievement SET review_status = 3, reject_reason = ? WHERE id = ?",
-                    reason, achievementId);
+            if (reason == null || reason.trim().isEmpty()) {
+                return Result.error("请填写打回原因");
+            }
+            int updated = jdbcTemplate.update(
+                    "UPDATE achievement SET review_status = 3, reject_reason = ? WHERE id = ?",
+                    reason.trim(), achievementId);
+            if (updated == 0) return Result.error("成果不存在");
             return Result.success("打回成功", null);
         } catch (Exception e) {
             return Result.error(e.getMessage() == null ? "打回失败" : e.getMessage());
@@ -565,24 +572,14 @@ public class AchievementController {
             if (id == null || title == null || type == null) return Result.error("缺少必要参数");
 
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT student_id, review_status FROM achievement WHERE id = ?", id);
+                    "SELECT student_id FROM achievement WHERE id = ?", id);
             if (rows.isEmpty()) return Result.error("成果不存在");
             Object owner = rows.get(0).get("student_id");
             if (!"admin".equals(user.getUserType())
                     && (owner == null || ((Number) owner).longValue() != user.getId())) {
                 return Result.error("只能修改自己的成果");
             }
-            Object reviewStatus = rows.get(0).get("review_status");
-            boolean rejected = reviewStatus instanceof Number && ((Number) reviewStatus).intValue() == 3;
-            if (rejected) {
-                // 打回后的修改视为重新提交：清空评分与评审状态，回到待审核
-                jdbcTemplate.update(
-                        "UPDATE achievement SET title = ?, type = ?, description = ?, update_time = NOW(), " +
-                                "review_status = 0, score = NULL, incubation_score = NULL, expert_review = 0, " +
-                                "reject_reason = NULL, score_teacher_id = NULL, score_time = NULL WHERE id = ?",
-                        title, type, body.get("description"), id);
-                return Result.success("修改成功，已重新提交审核", null);
-            }
+            // 只修改内容，不自动改变评审状态；打回后是否需要重新提交由教师端处理
             jdbcTemplate.update("UPDATE achievement SET title = ?, type = ?, description = ?, update_time = NOW() WHERE id = ?",
                     title, type, body.get("description"), id);
             return Result.success("更新成功", null);
