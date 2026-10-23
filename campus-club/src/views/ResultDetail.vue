@@ -4,7 +4,10 @@
       <div class="page-hero" v-if="result">
         <div class="hero-top">
           <el-button class="back-button" @click="goBack">← 返回成果浏览</el-button>
-          <span class="type-pill">{{ result.type || '未分类' }}</span>
+          <div class="hero-badges">
+            <span class="type-pill">{{ result.type || '未分类' }}</span>
+            <span class="status-pill" :class="`status-${currentStatusType}`">{{ currentStatusText }}</span>
+          </div>
         </div>
         <h1 class="hero-title">{{ result.title }}</h1>
         <div class="hero-meta">
@@ -107,8 +110,8 @@
             <div class="info-row"><span>孵化评分</span><b class="score">{{ result.incubationScore || '未评分' }}</b></div>
             <div class="info-row"><span>专家评分</span><b class="score">{{ result.expertScore || '未评审' }}</b></div>
             <div class="info-row">
-              <span>评审状态</span>
-              <el-tag :type="reviewStatusType" effect="light">{{ reviewStatusText }}</el-tag>
+              <span>成果状态</span>
+              <el-tag :type="currentStatusType" effect="light">{{ currentStatusText }}</el-tag>
             </div>
           </el-card>
 
@@ -163,6 +166,23 @@ const allFiles = computed(() => {
 const reviewStatusNumber = computed(() => Number(result.value?.reviewStatus) || 0)
 const reviewStatusText = computed(() => ({ 0: '待审核', 1: '评审中', 2: '已通过', 3: '已打回' }[reviewStatusNumber.value] || '待审核'))
 const reviewStatusType = computed(() => ({ 0: 'info', 1: 'warning', 2: 'success', 3: 'danger' }[reviewStatusNumber.value] || 'info'))
+const currentStatusText = computed(() => {
+  const rs = reviewStatusNumber.value
+  const incubation = Number(result.value?.incubationStatus) || 0
+  if (rs === 3) return '已打回'
+  if (incubation === 1) return '孵化中'
+  if (incubation === 2) return '孵化完成'
+  if (rs === 2) return '已通过'
+  if (rs === 1) return '评审中'
+  return '待审核'
+})
+const currentStatusType = computed(() => {
+  const text = currentStatusText.value
+  if (text === '已打回') return 'danger'
+  if (text === '已通过' || text === '孵化完成') return 'success'
+  if (text === '评审中' || text === '孵化中') return 'warning'
+  return 'info'
+})
 const reviewSteps = computed(() => {
   const r = result.value || {}
   const status = reviewStatusNumber.value
@@ -355,13 +375,34 @@ onMounted(async () => { await incrementView(); await loadResultDetail() })
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
-.type-pill {
+.hero-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.type-pill,
+.status-pill {
   padding: 6px 16px;
   border-radius: var(--radius-round);
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.28);
   font-size: var(--font-size-sm);
   font-weight: 600;
+}
+.status-pill.status-success {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(110, 231, 183, 0.7);
+}
+.status-pill.status-danger {
+  background: rgba(239, 68, 68, 0.26);
+  border-color: rgba(254, 202, 202, 0.75);
+}
+.status-pill.status-warning {
+  background: rgba(245, 158, 11, 0.24);
+  border-color: rgba(253, 230, 138, 0.75);
+}
+.status-pill.status-info {
+  background: rgba(255, 255, 255, 0.14);
 }
 .hero-title {
   position: relative;
