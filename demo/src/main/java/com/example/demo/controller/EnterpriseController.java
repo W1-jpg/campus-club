@@ -298,6 +298,62 @@ public class EnterpriseController {
         }
     }
 
+    /** 企业查看某条申请关联的学生成果材料 */
+    @GetMapping("/application/{id}/files")
+    public Result<?> applicationFiles(@PathVariable Long id, @AuthenticationPrincipal JwtUser user) {
+        if (user == null || (!"enterprise".equals(user.getUserType()) && !"admin".equals(user.getUserType()))) {
+            return Result.error("没有企业权限");
+        }
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT ra.student_id, ra.student_name, r.enterprise_id " +
+                            "FROM resource_application ra JOIN resource r ON ra.resource_id = r.id WHERE ra.id = ?", id);
+            if (rows.isEmpty()) return Result.error("申请不存在");
+            Map<String, Object> app = rows.get(0);
+            Object owner = app.get("enterprise_id");
+            if (!"admin".equals(user.getUserType())
+                    && (owner == null || ((Number) owner).longValue() != user.getId())) {
+                return Result.error("只能查看本企业资源的申请材料");
+            }
+            Object studentId = app.get("student_id");
+            List<Map<String, Object>> achievements = jdbcTemplate.queryForList(
+                    "SELECT id, title FROM achievement WHERE student_id = ? AND score > 0 AND review_status = 2 " +
+                            "ORDER BY update_time DESC LIMIT 1", studentId);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("studentName", app.get("student_name"));
+            if (achievements.isEmpty()) {
+                data.put("achievementId", null);
+                data.put("achievementTitle", "");
+                data.put("files", new ArrayList<>());
+                return Result.success(data);
+            }
+            Map<String, Object> achievement = achievements.get(0);
+            Object achievementId = achievement.get("id");
+            data.put("achievementId", achievementId);
+            data.put("achievementTitle", achievement.get("title"));
+
+            List<Map<String, Object>> files = new ArrayList<>();
+            for (Map<String, Object> row : jdbcTemplate.queryForList(
+                    "SELECT id, file_name, file_path, file_size, file_type, file_category FROM file WHERE achievement_id = ?",
+                    achievementId)) {
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("id", row.get("id"));
+                f.put("name", row.get("file_name"));
+                f.put("url", "/uploads/" + basename(String.valueOf(row.get("file_path"))));
+                long size = row.get("file_size") instanceof Number ? ((Number) row.get("file_size")).longValue() : 0L;
+                f.put("size", size);
+                f.put("sizeText", sizeText(size));
+                f.put("type", row.get("file_type"));
+                f.put("category", "club".equals(String.valueOf(row.get("file_category"))) ? "阶段一" : "阶段二");
+                files.add(f);
+            }
+            data.put("files", files);
+            return Result.success(data);
+        } catch (Exception e) {
+            return Result.error("获取申请材料失败");
+        }
+    }
+
     // ==================== 成果浏览 / 收藏 ====================
 
     @GetMapping("/achievements")
