@@ -48,6 +48,14 @@
                 <span class="meta-item">💬 {{ item.comments ? item.comments.length : 0 }}</span>
               </div>
               <p class="result-card__desc" v-if="item.description">{{ item.description }}</p>
+              <div v-if="String(item.reviewStatus) === '3'" class="reject-alert">
+                <span class="reject-alert__icon">⚠️</span>
+                <div class="reject-alert__body">
+                  <b>该成果已被教师打回</b>
+                  <p>{{ item.rejectReason || '请根据评审意见修改后重新提交' }}</p>
+                </div>
+                <el-button type="danger" plain size="small" @click="editResult(item)">修改并重新提交</el-button>
+              </div>
             </div>
             <div class="result-card__actions">
               <el-button type="primary" plain size="small" @click="viewDetail(item.id)">👁️ 查看</el-button>
@@ -169,14 +177,20 @@ const formatDate = (date) => {
 }
 
 const getStatusText = (r) => {
-  if (r.status === 2) return '已打回'
+  const rs = Number(r.reviewStatus)
+  if (rs === 3) return '已打回'
+  if (rs === 1) return '评审中'
+  if (rs === 2) return '已通过'
   if (r.incubationStatus === 1) return '孵化中'
   if (r.incubationStatus === 2) return '孵化完成'
   if (r.score) return '已评分'
   return '待评分'
 }
 const getStatusClass = (r) => {
-  if (r.status === 2) return 'tag-reject'
+  const rs = Number(r.reviewStatus)
+  if (rs === 3) return 'tag-reject'
+  if (rs === 1) return 'tag-reviewing'
+  if (rs === 2) return 'tag-done'
   if (r.incubationStatus === 1) return 'tag-incubating'
   if (r.incubationStatus === 2) return 'tag-done'
   if (r.score) return 'tag-scored'
@@ -237,6 +251,21 @@ onMounted(() => { loadMyResults() })
 .status-tag { padding: 3px 12px; border-radius: var(--radius-round); font-size: var(--font-size-xs); font-weight: 600; color: #fff; white-space: nowrap; flex-shrink: 0; }
 .tag-pending { background: var(--color-warning); }
 .tag-reject { background: var(--color-danger); }
+.tag-reviewing { background: var(--color-warning); }
+.reject-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff6f6;
+}
+.reject-alert__icon { font-size: 20px; flex-shrink: 0; }
+.reject-alert__body { flex: 1; min-width: 0; }
+.reject-alert__body b { display: block; color: #b91c1c; font-size: 13px; margin-bottom: 2px; }
+.reject-alert__body p { margin: 0; color: #7f1d1d; font-size: 12px; line-height: 1.5; word-break: break-word; }
 .tag-scored { background: var(--color-success); }
 .tag-incubating { background: var(--color-primary); }
 .tag-done { background: var(--text-tertiary); }

@@ -565,12 +565,23 @@ public class AchievementController {
             if (id == null || title == null || type == null) return Result.error("缺少必要参数");
 
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT student_id FROM achievement WHERE id = ?", id);
+                    "SELECT student_id, review_status FROM achievement WHERE id = ?", id);
             if (rows.isEmpty()) return Result.error("成果不存在");
             Object owner = rows.get(0).get("student_id");
             if (!"admin".equals(user.getUserType())
                     && (owner == null || ((Number) owner).longValue() != user.getId())) {
                 return Result.error("只能修改自己的成果");
+            }
+            Object reviewStatus = rows.get(0).get("review_status");
+            boolean rejected = reviewStatus instanceof Number && ((Number) reviewStatus).intValue() == 3;
+            if (rejected) {
+                // 打回后的修改视为重新提交：清空评分与评审状态，回到待审核
+                jdbcTemplate.update(
+                        "UPDATE achievement SET title = ?, type = ?, description = ?, update_time = NOW(), " +
+                                "review_status = 0, score = NULL, incubation_score = NULL, expert_review = 0, " +
+                                "reject_reason = NULL, score_teacher_id = NULL, score_time = NULL WHERE id = ?",
+                        title, type, body.get("description"), id);
+                return Result.success("修改成功，已重新提交审核", null);
             }
             jdbcTemplate.update("UPDATE achievement SET title = ?, type = ?, description = ?, update_time = NOW() WHERE id = ?",
                     title, type, body.get("description"), id);
