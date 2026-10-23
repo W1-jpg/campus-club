@@ -92,6 +92,10 @@
             <label>评分（0-100）</label>
             <el-input-number v-model="scoreForm.score" :min="0" :max="100" controls-position="right" class="w-full" />
           </div>
+          <div class="form-group">
+            <label>评语</label>
+            <el-input type="textarea" v-model="scoreForm.comment" :rows="3" placeholder="请输入评语" />
+          </div>
         </div>
       </div>
       <template #footer>
@@ -209,7 +213,7 @@ const viewDetail = async (item) => {
 
 const closeDetailDialog = () => { showDetailDialog.value = false; currentDetail.value = null; currentStudent.value = null }
 
-const scoreIncubation = (item) => { currentIncubation.value = item; scoreForm.value = { score: 0 }; showScoreDialog.value = true }
+const scoreIncubation = (item) => { currentIncubation.value = item; scoreForm.value = { score: 0, comment: '' }; showScoreDialog.value = true }
 const closeScoreDialog = () => { showScoreDialog.value = false; currentIncubation.value = null }
 
 const submitScore = async () => {
