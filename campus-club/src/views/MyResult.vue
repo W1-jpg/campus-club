@@ -52,15 +52,14 @@
                 <span class="reject-alert__icon">⚠️</span>
                 <div class="reject-alert__body">
                   <b>该成果已被教师打回</b>
-                  <p>{{ item.rejectReason || '请根据评审意见修改后联系教师重新审核' }}</p>
+                  <p>{{ item.rejectReason || '该成果已被打回，请等待教师处理' }}</p>
                 </div>
-                <el-button type="danger" plain size="small" @click="editResult(item)">修改成果</el-button>
               </div>
             </div>
             <div class="result-card__actions">
               <el-button type="primary" plain size="small" @click="viewDetail(item.id)">👁️ 查看</el-button>
               <el-button v-if="String(item.reviewStatus) === '2'" type="info" plain size="small" @click="appealResult(item)">📝 申请复核</el-button>
-              <el-button type="warning" plain size="small" @click="editResult(item)">✏️ 修改</el-button>
+              <el-button v-if="String(item.reviewStatus) !== '3'" type="warning" plain size="small" @click="editResult(item)">✏️ 修改</el-button>
               <el-button type="danger" plain size="small" @click="deleteResult(item.id)">🗑️ 删除</el-button>
             </div>
           </div>
