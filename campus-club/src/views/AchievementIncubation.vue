@@ -117,6 +117,19 @@
           <div class="detail-row" v-if="currentDetail.progress"><span class="dl">孵化进度</span><span class="dv">{{ currentDetail.progress }}%</span></div>
           <div class="detail-row" v-if="currentDetail.incubationScore"><span class="dl">孵化评分</span><span class="dv score">{{ currentDetail.incubationScore }} 分</span></div>
         </div>
+        <div class="detail-section" v-if="(currentDetail.achievementFiles && currentDetail.achievementFiles.length) || (currentDetail.clubFiles && currentDetail.clubFiles.length)">
+          <h3>成果文件</h3>
+          <div class="file-list">
+            <div v-for="(file, index) in currentDetail.clubFiles" :key="'club-' + index" class="file-row">
+              <span>📄 {{ file.name }}<small class="file-stage">阶段一</small></span>
+              <a v-if="file.url" :href="file.url" target="_blank" class="file-link">下载查看</a>
+            </div>
+            <div v-for="(file, index) in currentDetail.achievementFiles" :key="'ach-' + index" class="file-row">
+              <span>📄 {{ file.name }}<small class="file-stage">阶段二</small></span>
+              <a v-if="file.url" :href="file.url" target="_blank" class="file-link">下载查看</a>
+            </div>
+          </div>
+        </div>
         <div class="detail-section" v-if="currentStudent">
           <h3>上传者信息</h3>
           <div class="detail-row"><span class="dl">姓名</span><span class="dv">{{ currentStudent.realName }}</span></div>
@@ -312,6 +325,7 @@ onMounted(() => { loadIncubations() })
 .file-row:last-child { border-bottom: none; }
 .file-link { color: var(--color-primary); font-size: var(--font-size-xs); padding: 2px 10px; background: var(--color-primary-bg); border-radius: var(--radius-sm); text-decoration: none; }
 .file-link:hover { background: var(--color-primary); color: #fff; }
+.file-stage { margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--color-primary-bg); color: var(--color-primary); font-size: 10px; }
 .score-dialog__criteria { background: var(--color-primary-bg-light); border-radius: var(--radius-md); padding: var(--spacing-lg); margin-bottom: var(--spacing-lg); border-left: 4px solid var(--color-primary); }
 .score-dialog__criteria h4 { font-size: var(--font-size-base); font-weight: 600; margin-bottom: var(--spacing-sm); }
 .criteria-list p { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0 0 4px 0; line-height: 1.6; }
