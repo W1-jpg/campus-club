@@ -46,7 +46,7 @@
           </div>
           <div class="application-card__actions">
             <el-button size="small" @click="viewResourceDetail(app.resourceId)">查看资源详情</el-button>
-            <el-button size="small" type="primary" plain @click="openChat(app)">沟通</el-button>
+            <el-button size="small" type="primary" @click="openChat(app)">沟通</el-button>
             <el-button v-if="app.status === '待审核'" size="small" type="danger" plain @click="cancelApplication(app.id)">取消申请</el-button>
           </div>
         </div>

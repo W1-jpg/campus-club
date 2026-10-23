@@ -33,7 +33,7 @@
           </el-table-column>
           <el-table-column label="操作" width="240" fixed="right">
             <template #default="s">
-              <el-button type="primary" link @click="openChat(s.row)">沟通</el-button>
+              <el-button type="primary" size="small" @click="openChat(s.row)">沟通</el-button>
               <template v-if="s.row.status==='待审核'">
                 <el-button type="success" size="small" @click="approve(s.row)">批准</el-button>
                 <el-button type="danger" size="small" @click="reject(s.row)">拒绝</el-button>
