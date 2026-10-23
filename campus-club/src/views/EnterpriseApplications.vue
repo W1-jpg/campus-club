@@ -31,7 +31,16 @@
           <el-table-column label="申请材料" width="110" align="center">
             <template #default="s"><el-button type="primary" link @click="viewFiles(s.row)">查看材料</el-button></template>
           </el-table-column>
-          <el-table-column label="操作" width="190" fixed="right"><template #default="s"><template v-if="s.row.status==='待审核'"><el-button type="success" size="small" @click="approve(s.row)">批准</el-button><el-button type="danger" size="small" @click="reject(s.row)">拒绝</el-button></template><span v-else style="color:var(--text-tertiary)">已处理</span></template></el-table-column>
+          <el-table-column label="操作" width="240" fixed="right">
+            <template #default="s">
+              <el-button type="primary" link @click="openChat(s.row)">沟通</el-button>
+              <template v-if="s.row.status==='待审核'">
+                <el-button type="success" size="small" @click="approve(s.row)">批准</el-button>
+                <el-button type="danger" size="small" @click="reject(s.row)">拒绝</el-button>
+              </template>
+              <span v-else style="color:var(--text-tertiary)">已处理</span>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
 
@@ -53,6 +62,12 @@
         </template>
         <template #footer><el-button type="primary" @click="filesVisible = false">关闭</el-button></template>
       </el-dialog>
+
+      <ApplicationChat
+        v-model:visible="chatVisible"
+        :application-id="chatApplication?.id"
+        :title="chatApplication ? `${chatApplication.studentName || '学生'} - ${chatApplication.resourceTitle || ''}` : ''"
+      />
     </div>
   </PageLayout>
 </template>
@@ -61,10 +76,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageLayout from '../components/PageLayout.vue'
+import ApplicationChat from './components/ApplicationChat.vue'
 import request from '../utils/request'
 
 const applications = ref([]), loading = ref(false), filter = ref('all')
 const filesVisible = ref(false), filesLoading = ref(false), filesData = ref({})
+const chatVisible = ref(false), chatApplication = ref(null)
 const eid = () => parseInt(localStorage.getItem('enterpriseId')||'0')
 const filtered = computed(() => filter.value==='all'?applications.value:applications.value.filter(a=>a.status===filter.value))
 
@@ -74,6 +91,7 @@ const load = async () => { loading.value=true; try{const r=await request.get('/a
 const approve = async (row) => { try{await request.put('/api/enterprise/applications/'+row.id+'/status',{status:'已通过'});ElMessage.success('已批准');load()}catch{ElMessage.error('操作失败')} }
 const reject = async (row) => { try{await request.put('/api/enterprise/applications/'+row.id+'/status',{status:'已拒绝'});ElMessage.success('已拒绝');load()}catch{ElMessage.error('操作失败')} }
 const fmt = d => { if(!d)return'';const dt=new Date(d);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0')+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0') }
+const openChat = (row) => { chatApplication.value = row; chatVisible.value = true }
 const viewFiles = async (row) => {
   filesVisible.value = true
   filesLoading.value = true

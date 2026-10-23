@@ -46,6 +46,7 @@
           </div>
           <div class="application-card__actions">
             <el-button size="small" @click="viewResourceDetail(app.resourceId)">查看资源详情</el-button>
+            <el-button size="small" type="primary" plain @click="openChat(app)">沟通</el-button>
             <el-button v-if="app.status === '待审核'" size="small" type="danger" plain @click="cancelApplication(app.id)">取消申请</el-button>
           </div>
         </div>
@@ -74,6 +75,12 @@
         <el-button type="primary" @click="showResourceDetailDialog = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <ApplicationChat
+      v-model:visible="chatVisible"
+      :application-id="chatApplication?.id"
+      :title="chatApplication?.resourceTitle || ''"
+    />
   </PageLayout>
 </template>
 
@@ -82,11 +89,14 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import PageLayout from '../components/PageLayout.vue'
+import ApplicationChat from './components/ApplicationChat.vue'
 
 const selectedStatus = ref('')
 const applications = ref([])
 const showResourceDetailDialog = ref(false)
 const currentResource = ref(null)
+const chatVisible = ref(false)
+const chatApplication = ref(null)
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -115,6 +125,7 @@ const loadApplications = async () => {
   } catch (error) { ElMessage.error('加载申请记录失败，请检查网络连接') }
 }
 
+const openChat = (app) => { chatApplication.value = app; chatVisible.value = true }
 const viewResourceDetail = async (resourceId) => {
   try {
     const response = await request.get(`/api/resource/${resourceId}`)
