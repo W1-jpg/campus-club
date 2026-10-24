@@ -58,7 +58,7 @@ const props = defineProps({
   applicationId: { type: [Number, String], default: null },
   title: { type: String, default: '' }
 })
-const emit = defineEmits(['update:visible'])
+const emit = defineEmits(['update:visible', 'read'])
 const messages = ref([])
 const content = ref('')
 const sending = ref(false)
@@ -95,6 +95,7 @@ const load = async () => {
     if (res.code === 200) {
       messages.value = res.data || []
       await request.put(`/api/application/${props.applicationId}/messages/read`)
+      emit('read', props.applicationId)
       scrollToBottom()
     }
   } catch (e) { /* 聊天加载失败时静默，避免频繁弹窗 */ }

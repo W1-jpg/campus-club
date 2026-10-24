@@ -21,6 +21,7 @@
             {{ opt.label }}
           </button>
         </div>
+        <el-tag v-if="unreadTotal" type="danger" effect="light" class="unread-tip">有 {{ unreadTotal }} 条未读沟通</el-tag>
       </div>
 
       <!-- 申请列表 -->
@@ -47,6 +48,7 @@
           <div class="application-card__actions">
             <el-button size="small" @click="viewResourceDetail(app.resourceId)">查看资源详情</el-button>
             <el-button size="small" type="primary" @click="openChat(app)">沟通</el-button>
+            <span v-if="unreadMap[app.id]" class="unread-count">{{ unreadMap[app.id] }}</span>
             <el-button v-if="app.status === '待审核'" size="small" type="danger" plain @click="cancelApplication(app.id)">取消申请</el-button>
           </div>
         </div>
@@ -80,12 +82,13 @@
       v-model:visible="chatVisible"
       :application-id="chatApplication?.id"
       :title="chatApplication?.resourceTitle || ''"
+      @read="loadUnread"
     />
   </PageLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import PageLayout from '../components/PageLayout.vue'
@@ -97,6 +100,9 @@ const showResourceDetailDialog = ref(false)
 const currentResource = ref(null)
 const chatVisible = ref(false)
 const chatApplication = ref(null)
+const unreadMap = ref({})
+const unreadTotal = computed(() => Object.values(unreadMap.value).reduce((sum, n) => sum + Number(n || 0), 0))
+let unreadTimer = null
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -150,7 +156,22 @@ const formatDate = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 
-onMounted(() => { loadApplications() })
+const loadUnread = async () => {
+  try {
+    const res = await request.get('/api/application/unread')
+    if (res.code === 200) {
+      const map = {}
+      ;(res.data || []).forEach(item => { map[item.applicationId] = Number(item.unreadCount) || 0 })
+      unreadMap.value = map
+    }
+  } catch { /* 未读统计失败不影响申请列表 */ }
+}
+onMounted(() => {
+  loadApplications()
+  loadUnread()
+  unreadTimer = setInterval(loadUnread, 10000)
+})
+onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
 </script>
 
 <style scoped>
@@ -174,6 +195,9 @@ onMounted(() => { loadApplications() })
 .filter-tab { padding: 8px 20px; border: 1px solid var(--border-color); border-radius: var(--radius-round); background: var(--bg-card); font-size: var(--font-size-sm); color: var(--text-secondary); cursor: pointer; transition: all var(--transition-base); font-weight: 500; }
 .filter-tab:hover { border-color: var(--color-primary-light); color: var(--color-primary); }
 .filter-tab.active { background: var(--gradient-primary); color: #fff; border-color: transparent; }
+.filter-bar { display: flex; align-items: center; }
+.unread-tip { margin-left: 14px; }
+.unread-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 600; }
 
 /* 申请卡片 */
 .application-list { display: flex; flex-direction: column; gap: var(--spacing-lg); }

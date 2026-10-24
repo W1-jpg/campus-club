@@ -127,6 +127,37 @@ public class ApplicationMessageController {
         }
     }
 
+    @GetMapping("/unread")
+    public Result<?> unread(@AuthenticationPrincipal JwtUser user) {
+        if (user == null) return Result.error("未登录或登录已过期");
+        try {
+            String roleCondition;
+            Object[] params;
+            if ("student".equals(user.getUserType())) {
+                roleCondition = "ra.student_id = ?";
+                params = new Object[]{user.getId(), user.getId()};
+            } else if ("enterprise".equals(user.getUserType())) {
+                roleCondition = "r.enterprise_id = ?";
+                params = new Object[]{user.getId(), user.getId()};
+            } else if ("admin".equals(user.getUserType())) {
+                roleCondition = "1 = 1";
+                params = new Object[]{user.getId()};
+            } else {
+                return Result.success(new java.util.ArrayList<>());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT m.application_id AS applicationId, COUNT(*) AS unreadCount " +
+                            "FROM application_message m " +
+                            "JOIN resource_application ra ON m.application_id = ra.id " +
+                            "JOIN resource r ON ra.resource_id = r.id " +
+                            "WHERE m.is_read = 0 AND m.sender_id <> ? AND " + roleCondition +
+                            " GROUP BY m.application_id", params);
+            return Result.success(rows);
+        } catch (Exception e) {
+            return Result.error("获取未读消息失败");
+        }
+    }
+
     @PutMapping("/{id}/messages/read")
     public Result<?> markRead(@PathVariable Long id, @AuthenticationPrincipal JwtUser user) {
         try {

@@ -17,6 +17,7 @@
           <el-radio-button value="已通过">已通过</el-radio-button>
           <el-radio-button value="已拒绝">已拒绝</el-radio-button>
         </el-radio-group>
+        <el-tag v-if="unreadTotal" type="danger" effect="light" class="unread-tip">有 {{ unreadTotal }} 条未读沟通</el-tag>
       </div>
 
       <div class="content-card table-card">
@@ -34,6 +35,7 @@
           <el-table-column label="操作" width="240" fixed="right">
             <template #default="s">
               <el-button type="primary" size="small" @click="openChat(s.row)">沟通</el-button>
+              <span v-if="unreadMap[s.row.id]" class="unread-count">{{ unreadMap[s.row.id] }}</span>
               <template v-if="s.row.status==='待审核'">
                 <el-button type="success" size="small" @click="approve(s.row)">批准</el-button>
                 <el-button type="danger" size="small" @click="reject(s.row)">拒绝</el-button>
@@ -67,13 +69,14 @@
         v-model:visible="chatVisible"
         :application-id="chatApplication?.id"
         :title="chatApplication ? `${chatApplication.studentName || '学生'} - ${chatApplication.resourceTitle || ''}` : ''"
+        @read="loadUnread"
       />
     </div>
   </PageLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageLayout from '../components/PageLayout.vue'
 import ApplicationChat from './components/ApplicationChat.vue'
@@ -82,10 +85,28 @@ import request from '../utils/request'
 const applications = ref([]), loading = ref(false), filter = ref('all')
 const filesVisible = ref(false), filesLoading = ref(false), filesData = ref({})
 const chatVisible = ref(false), chatApplication = ref(null)
+const unreadMap = ref({})
+const unreadTotal = computed(() => Object.values(unreadMap.value).reduce((sum, n) => sum + Number(n || 0), 0))
+let unreadTimer = null
 const eid = () => parseInt(localStorage.getItem('enterpriseId')||'0')
 const filtered = computed(() => filter.value==='all'?applications.value:applications.value.filter(a=>a.status===filter.value))
 
-onMounted(() => { load() })
+const loadUnread = async () => {
+  try {
+    const res = await request.get('/api/application/unread')
+    if (res.code === 200) {
+      const map = {}
+      ;(res.data || []).forEach(item => { map[item.applicationId] = Number(item.unreadCount) || 0 })
+      unreadMap.value = map
+    }
+  } catch { /* 未读统计失败不影响审批 */ }
+}
+onMounted(() => {
+  load()
+  loadUnread()
+  unreadTimer = setInterval(loadUnread, 10000)
+})
+onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
 
 const load = async () => { loading.value=true; try{const r=await request.get('/api/enterprise/applications/'+eid());if(r.code===200)applications.value=r.data||[]}catch{ElMessage.error('获取失败')}finally{loading.value=false} }
 const approve = async (row) => { try{await request.put('/api/enterprise/applications/'+row.id+'/status',{status:'已通过'});ElMessage.success('已批准');load()}catch{ElMessage.error('操作失败')} }
@@ -114,6 +135,8 @@ const viewFiles = async (row) => {
 
 .filter-row { margin-bottom: var(--spacing-lg); }
 .table-card { border-radius: var(--radius-xl); border: 1px solid var(--border-color); box-shadow: var(--shadow-card); overflow: hidden; }
+.unread-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 600; }
+.unread-tip { margin-left: 14px; }
 .material-head { display: flex; gap: 24px; padding: 12px 14px; margin-bottom: 12px; border-radius: 10px; background: var(--bg-page); color: var(--text-secondary); font-size: 13px; }
 .material-loading { padding: 40px; text-align: center; color: var(--text-tertiary); }
 .file-download { color: var(--color-primary); text-decoration: none; font-size: 13px; }
