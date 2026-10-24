@@ -220,13 +220,15 @@ public class EnterpriseController {
                     : (enterpriseIdRaw == null ? null : Long.valueOf(String.valueOf(enterpriseIdRaw)));
             if (enterpriseId == null) return Result.error("缺少企业标识");
 
+            Timestamp publishTime = parseDateTime(body.get("publishTime"));
+            if (publishTime == null) publishTime = new Timestamp(System.currentTimeMillis());
             jdbcTemplate.update(
                     "INSERT INTO resource (title, type, provider, description, publish_time, end_time, status, enterprise_id) " +
                             "VALUES (?,?,?,?,?,?,?,?)",
                     title, type,
                     body.get("provider") == null ? "" : body.get("provider"),
                     body.get("description") == null ? "" : body.get("description"),
-                    parseDateTime(body.get("publishTime")),
+                    publishTime,
                     parseDateTime(body.get("endTime")),
                     "active", enterpriseId);
             return Result.success("资源投递成功", null);
